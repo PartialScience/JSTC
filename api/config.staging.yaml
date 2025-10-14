@@ -1,0 +1,31 @@
+# Staging Environment Configuration
+# This file contains settings specific to the staging environment
+# It will be merged with config.yaml when ENV_FOR_DYNACONF=staging
+
+api:
+  debug: false
+  host: "0.0.0.0"
+
+cors:
+  allow_origins:
+    - "https://staging.your-frontend.com"
+    - "https://staging-api.your-domain.com"
+
+database:
+  url: "postgresql://user:password@staging-db/staging_app"
+  echo: false
+  pool_size: 10
+  max_overflow: 20
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "/var/log/jstc-api/staging.log"
+
+security:
+  access_token_expire_minutes: 20
+
+features:
+  enable_rate_limiting: true
+  enable_request_logging: true
+  enable_metrics: true

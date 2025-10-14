@@ -1,0 +1,45 @@
+# JSTC API Base Configuration
+# This file contains default settings that apply to all environments
+
+api:
+  title: "JSTC API"
+  description: "A FastAPI application with modular structure and Dynaconf configuration"
+  version: "1.0.0"
+  host: "0.0.0.0"
+  port: 8000
+  debug: false  # Default to false, override in dev
+  docs_url: "/docs"
+  redoc_url: "/redoc"
+
+cors:
+  allow_origins:
+    - "*"
+  allow_methods:
+    - "*"
+  allow_headers:
+    - "*"
+  allow_credentials: true
+
+database:
+  url: "sqlite:///./sql_app.db"
+  echo: false
+  pool_size: 5
+  max_overflow: 10
+
+pagination:
+  default_page_size: 100
+  max_page_size: 1000
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: null
+
+security:
+  algorithm: "HS256"
+  access_token_expire_minutes: 30
+
+features:
+  enable_rate_limiting: false
+  enable_request_logging: true
+  enable_metrics: false

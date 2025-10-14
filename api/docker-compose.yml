@@ -1,0 +1,83 @@
+# Docker Compose for JSTC API
+# This file defines the multi-container application setup
+
+version: '3.8'
+
+services:
+  # FastAPI application
+  api:
+    build: .
+    container_name: jstc-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV_FOR_DYNACONF=development
+      - JSTC_SECRET_KEY=your-secret-key-change-in-production
+      - JSTC_DATABASE__URL=postgresql://postgres:password@db:5432/jstc_db
+    depends_on:
+      - db
+      - redis
+    volumes:
+      # Mount source code for development (comment out for production)
+      - .:/app
+    networks:
+      - jstc-network
+    restart: unless-stopped
+
+  # PostgreSQL database
+  db:
+    image: postgres:15-alpine
+    container_name: jstc-db
+    environment:
+      POSTGRES_DB: jstc_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - jstc-network
+    restart: unless-stopped
+
+  # Redis for caching/sessions
+  redis:
+    image: redis:7-alpine
+    container_name: jstc-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - jstc-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: jstc-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+    networks:
+      - jstc-network
+    restart: unless-stopped
+
+# Networks
+networks:
+  jstc-network:
+    driver: bridge
+
+# Volumes
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
