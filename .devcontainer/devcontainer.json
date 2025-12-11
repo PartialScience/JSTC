@@ -15,13 +15,15 @@
 
 	// The optional 'workspaceFolder' property is the path VS Code should open by default when
 	// connected. This is typically a file mount in .devcontainer/docker-compose.yml
-	"workspaceFolder": "/workspaces",
+	"workspaceFolder": "/JSTC",
 	"features": {
 		"ghcr.io/devcontainers/features/python:1": {
 			"installTools": true,
 			"version": "3.12"
 		}
-	}
+	},
+
+	"postCreateCommand": "bash /JSTC/.devcontainer/scripts/PostCreationScript.sh"
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
