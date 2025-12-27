@@ -17,6 +17,7 @@ To set up the dev environment follow these steps:
 1. Open the project in VSCode so that the .devcontainer directory is at the root of your open project
 2. Within VSCode hit `Ctrl`+`Shift`+`P` to open the command pallet
 3. Enter the following command `Dev Containers: Reopen in Container`
+4. VSCode will reopen and build the dev enviornment. Wait until the dev container is done setting up before you attempt to run any code. Note that even after the files show up in VSCode the configuration will continue for several more minutes. You can watch the progress by pressing `ctrl`+`j` and navigating to the terminals tab. Or by clicking on the info button when the dev container popup shows up in the bottom right of the screen
 
 The above steps will build a docker container which is pre-configured to run the project, and then re-open VSCode remotely inside of this container.
 
