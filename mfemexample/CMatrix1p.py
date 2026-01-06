@@ -1,25 +1,20 @@
+## This is a python version of the cpp file TeslaSlice1p_tri.cpp
+## It solves a 2D axisymmetric conduction problem on a triangular mesh
 
 
-
-
-#    This is an uncompleted file, does not work, see the parallel version
-#
-#
-#
-
-
-
-
-
-
-
-
-import mfem.ser as mfem
-#import mfem.par as mfem_par
+import mfem.par as mfem
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
 import argparse
+from mpi4py import MPI
+
+num_procs = MPI.COMM_WORLD.size
+myid = MPI.COMM_WORLD.rank
+smyid = '{:0>6d}'.format(myid)
+
+
+
 
 
 
@@ -60,6 +55,8 @@ def parse_args():
 
     parser.add_argument("--rad", type=float, default=0.1)
 
+    parser.add_argument("--ns", type=int, default=10)
+
     return parser.parse_args()
 
 
@@ -75,6 +72,7 @@ RectWidth  = args.rect_width
 Cx, Cy = args.cx, args.cy
 Rx, Ry = args.rx, args.ry
 Rad = args.rad
+NumSlices = args.ns
 
 nx = 40
 ny = 80
@@ -131,6 +129,8 @@ for level in range(n_ref_levels):
             mesh.GeneralRefinement(el_to_refine)
 
 mesh.EnsureNodes()
+mesh.UniformRefinement()
+mesh.UniformRefinement()
 
 # Set interior attributes
 for i in range(mesh.GetNE()):
@@ -182,19 +182,20 @@ for i in range(mesh.GetNBE()):
 
 mesh.SetAttributes()
 
+pmesh = mfem.ParMesh(MPI.COMM_WORLD, mesh)
 
 ###################################### Finite Element Space
 
 # Define the finite element function space
-fec = mfem.H1_FECollection(order, mesh.Dimension())   # H1 order=1
-fespace = mfem.FiniteElementSpace(mesh, fec)
+fec = mfem.H1_FECollection(order, pmesh.Dimension())   # H1 order=1
+fespace = mfem.ParFiniteElementSpace(pmesh, fec)
 
 # Define the essential dofs
 ess_tdof_list = mfem.intArray()
 
 # If there are boundary attributes, make a marker array of length max_attr
-if mesh.bdr_attributes.Size() > 0:
-    ess_bdr = mfem.intArray(mesh.bdr_attributes.Max())
+if pmesh.bdr_attributes.Size() > 0:
+    ess_bdr = mfem.intArray(pmesh.bdr_attributes.Max())
     ess_bdr.Assign(0)
 
     # Mark attributes 1(bottom), 2(right), 3(top) as essential
@@ -211,25 +212,17 @@ print("Num essential vdofs:", ess_tdof_list.Size())
 
 ###################################################### Linear Form
 
-yval = 0.95
-tol = 0.05
-@mfem.jit.scalar
-def rect_slice(x): #Puts voltage on part of coil
-    return 1.0 if (abs(x[1] - yval) < tol and x[0] <=  Rx + RectWidth and x[0] >= Rx ) else 0.0
+class WRS(mfem.PyCoefficient):
+    def __init__(self, yval, tol):
+        super().__init__()
+        self.yval = yval
+        self.tol = tol
 
-# Weight the RHS by radius r to be consistent with the axisymmetric
-# bilinear form (we multiply K by r above). This avoids an inconsistent
-# weak formulation that can hurt solver convergence.
-@mfem.jit.scalar
-def rect_slice_weighted(x):
-    # replicate rect_slice logic and multiply by r (=x[0]) to avoid
-    # nesting a numba coefficient inside another jitted function
-    in_rect = (abs(x[1] - yval) < tol and x[0] <= Rx + RectWidth and x[0] >= Rx)
-    return (1.0 * x[0]) if in_rect else 0.0
+    def EvalValue(self, x):
+        in_rect = (abs(x[1] - yval) < tol and Rx <= x[0] <= Rx + RectWidth)
+        return x[0] if in_rect else 0.02
 
-b = mfem.LinearForm(fespace)
-b.AddDomainIntegrator(mfem.DomainLFIntegrator(rect_slice_weighted))
-b.Assemble()
+b = mfem.ParLinearForm(fespace)   # To be set later
 
 
 ##################################################### Bilinear Form
@@ -258,67 +251,124 @@ def K(x):
     return out
 
 
-a = mfem.BilinearForm(fespace)
+a = mfem.ParBilinearForm(fespace)
 a.AddDomainIntegrator(mfem.DiffusionIntegrator(K))
 a.Assemble()
 
 
-print("bdr_attributes:", mesh.bdr_attributes.Size(), mesh.bdr_attributes.Min(), mesh.bdr_attributes.Max())
+print("bdr_attributes:", pmesh.bdr_attributes.Size(), pmesh.bdr_attributes.Min(), pmesh.bdr_attributes.Max())
 
 
 #################################################### Set up and solve
 
+finder = mfem.FindPointsGSLIB(MPI.COMM_WORLD)
+finder.Setup(pmesh)
 
+# point_pos holds x coords then y coords, length = 2*NumSlices
+point_pos = mfem.Vector(2*NumSlices)
+values    = mfem.Vector(NumSlices)
 
-# Initialize a gridfunction to store the solution vector
-x = mfem.GridFunction(fespace)
+for j in range(NumSlices):
+    point_pos[j]            = Rx + RectWidth/2.0
+    point_pos[NumSlices + j] = Ry + RectHeight*(1.0 + 2.0*j)/20.0   # match your formula
+
+# (Optional) C as a NumPy array if you want
+C = np.zeros((NumSlices, NumSlices), dtype=float)
+
+# --- Run simulation for each slice ---
+# These are "output" objects FormLinearSystem fills in; in Python you typically
+# predeclare them and reuse.
+A = mfem.HypreParMatrix()  # holds the assembled/condensed operator
+X = mfem.Vector()       # true-dof solution vector
+B = mfem.Vector()       # true-dof RHS vector
+
+# Initialize a parallel gridfunction to store the solution vector
+x = mfem.ParGridFunction(fespace)
 x.Assign(0.0)
 
-# Form the linear system of equations (AX=B)
-A = mfem.OperatorPtr()
-B = mfem.Vector()
-X = mfem.Vector()
+
 a.FormLinearSystem(ess_tdof_list, x, b, A, X, B)
 
 
 # Solve the system AX=B using PCG with a Gauss-Seidel preconditioner
-AA = mfem.OperatorHandle2SparseMatrix(A)
-X.SetSize(B.Size())
-# Use Gauss-Seidel (GSSmoother) rather than DSmoother; GS is more robust
-# for strong coefficient variation (e.g., near r=0 with axisymmetric weight)
-M = mfem.GSSmoother(AA)
-mfem.PCG(AA, M, B, X, 1, 200, 1e-12, 0.0)
-
-# Diagnostics: compute and report residual norms to verify PCG behavior
-Av = mfem.Vector(AA.Height())
-AA.Mult(X, Av)             # Av = A * X
-res = mfem.Vector(B.Size())
-res.Assign(B)
-res -= Av                 # res = B - A*X
-print('||r||_2 =', res.Norml2())
-# preconditioned residual inner product (B r, r)
-z = mfem.Vector(res.Size())
-M.Mult(res, z)
-print('(M r, r) =', float(res * z))
-print('||M r||_2 =', z.Norml2())
+M = mfem.HypreBoomerAMG(A)
+cg = mfem.CGSolver(MPI.COMM_WORLD)
+cg.SetRelTol(1e-12)
+cg.SetMaxIter(2000)
+cg.SetPrintLevel(1)
+cg.SetPreconditioner(M)
 
 
-a.RecoverFEMSolution(X, b, x)
+
+
+
+for i in range(NumSlices):
+    b.Assign(0.0)
+
+    # Your custom coefficient: RectSliceCoefficient(center_y, half_thickness)
+    yval = Ry + RectHeight*(1.0 + 2.0*i)/(2.0*NumSlices)     # center of slice (matches your C++)
+    tol  = RectHeight/NumSlices/2.0
+
+    rect_slice_weighted = WRS(yval = yval, tol = tol)
+
+    # b.AddDomainIntegrator(new DomainLFIntegrator(RectVoltsSlice));
+    b.AddDomainIntegrator(mfem.DomainLFIntegrator(rect_slice_weighted))
+    b.Assemble()
+
+    # a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B)
+
+    cg.SetOperator(A)      # OperatorPtr -> Operator
+    cg.Mult(B, X)
+
+    a.RecoverFEMSolution(X, b, x)
+
+    # finder.Interpolate(point_pos, x, values, mfem::Ordering::byNODES);
+    finder.Interpolate(point_pos, x, values, mfem.Ordering.byNODES)
+
+    for j in range(NumSlices):
+        C[i, j] = values[j]
+
+C = np.array(C, dtype=float)
+
+# Use eigh if symmetric (recommended)
+if np.allclose(C, C.T, rtol=1e-10, atol=1e-12):
+    evals, evecs = np.linalg.eigh(C)   # evals ascending, evecs columns
+else:
+    evals, evecs = np.linalg.eig(C)    # possibly complex
+
+# Sort by descending magnitude (or change to np.argsort(evals)[::-1] if you prefer)
+idx = np.argsort(np.abs(evals))[::-1]
+evals = evals[idx]
+evecs = evecs[:, idx]
+
+print("Eigenvalues (sorted):")
+for k, lam in enumerate(evals):
+    print(f"{k:2d}: {lam}")
+
+# Print first few eigenvectors (optional)
+k_print = min(3, evecs.shape[1])
+for k in range(k_print):
+    print(f"\nEigenvector {k} (lambda={evals[k]}):")
+    print(evecs[:, k])
+
+
+#x.Save('sol.'+smyid)
+#pmesh.Print('mesh.'+smyid)
 
 
 
 ########################################## Visualization using matplotlib
 
 
-# Extract vertices and solution as numpy arrays
-if(visualization):
-    verts = np.array(mesh.GetVertexArray())
-    sol = x.GetDataArray()
- 
-    triang = tri.Triangulation(verts[:,0], verts[:,1])
+n = evecs.shape[0]
+s = np.arange(n)
 
-    fig, ax = plt.subplots()
-    ax.set_aspect('equal')
-    tpc = ax.tripcolor(triang, sol, shading='gouraud')
-    fig.colorbar(tpc)
+for k in [0, 1]:
+    plt.figure()
+    plt.plot(s, evecs[:, k], marker="o")
+    plt.xlabel("slice index")
+    plt.ylabel("eigenvector component")
+    plt.title(f"Eigenvector {k} (lambda={evals[k]:.6g})")
+    plt.grid(True)
     plt.show()
