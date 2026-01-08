@@ -158,5 +158,5 @@ def visualize_region(
     else:
         ax.set_title('Region Visualization', fontsize=14, fontweight='bold')
     
-    plt.tight_layout()
+    fig.tight_layout()
     return fig
