@@ -13,7 +13,7 @@ from app.models.coil_models import (
     Topload,
     SecondaryConductor,
     GroundedConductor,
-    TeslaCoil,
+    TeslaCoilGeometry,
     BoundaryCondition,
     BoundaryConditionType,
     SimulatableTeslaCoil
@@ -63,7 +63,7 @@ def grounded_from_schema(schema: GroundedConductorSchema) -> GroundedConductor:
     return GroundedConductor(geometry=geometry)
 
 
-def coil_from_schema(schema: TeslaCoilSchema) -> TeslaCoil:
+def coil_from_schema(schema: TeslaCoilSchema) -> TeslaCoilGeometry:
     """
     Convert a TeslaCoilSchema to a domain TeslaCoil.
     
@@ -76,7 +76,7 @@ def coil_from_schema(schema: TeslaCoilSchema) -> TeslaCoil:
     secondary = secondary_from_schema(schema.secondary)
     toploads = [topload_from_schema(tl) for tl in schema.toploads] if schema.toploads else None
     grounds = [grounded_from_schema(gnd) for gnd in schema.grounds] if schema.grounds else None
-    return TeslaCoil(secondary=secondary, toploads=toploads, grounds=grounds)
+    return TeslaCoilGeometry(secondary=secondary, toploads=toploads, grounds=grounds)
 
 
 def boundary_condition_from_schema(schema: BoundaryConditionSchema | None) -> BoundaryCondition:

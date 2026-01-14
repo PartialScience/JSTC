@@ -72,7 +72,7 @@ def visualize_region(
         
     Examples:
         >>> # Single region
-        >>> circle = Circle(center=[0, 0], radius=5)
+        >>> circle = Circle(center=(0, 0), radius=5)
         >>> visualize_region(circle)
         
         >>> # Multiple regions

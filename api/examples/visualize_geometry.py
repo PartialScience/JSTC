@@ -14,7 +14,7 @@ def demo_circle():
     print("Creating circle visualization...")
     
     # Create a circle
-    circle = Circle(center=[0, 0], radius=5.0)
+    circle = Circle(center=(0, 0), radius=5.0)
     
     # Visualize circle
     fig = visualize_region(circle, title="Circle Region")
@@ -35,9 +35,9 @@ def demo_polygon():
         radius = outer_radius if i % 2 == 0 else inner_radius
         x = radius * math.cos(angle)
         y = radius * math.sin(angle)
-        star_vertices.append([x, y])
+        star_vertices.append((x, y))
     
-    star = Polygon(vertices=star_vertices)
+    star = Polygon(vertices=tuple(star_vertices))
     
     # Visualize the star
     fig = visualize_region(star, title="5-Pointed Star")
@@ -48,7 +48,7 @@ def demo_rectangle():
     print("\nCreating rectangle visualization...")
     
     # Axis-aligned rectangle
-    rect_aligned = Rectangle(vertices=[[0, 0], [3, 0], [3, 2], [0, 2]])
+    rect_aligned = Rectangle(vertices=((0, 0), (3, 0), (3, 2), (0, 2)))
     
     # Rotated rectangle
     angle = math.pi / 6  # 30 degrees
@@ -56,12 +56,12 @@ def demo_rectangle():
     width, height = 3, 2
     
     # Rotate rectangle around origin
-    vertices_rotated = [
-        [0, 0],
-        [width * cos_a, width * sin_a],
-        [width * cos_a - height * sin_a, width * sin_a + height * cos_a],
-        [-height * sin_a, height * cos_a]
-    ]
+    vertices_rotated = (
+        (0, 0),
+        (width * cos_a, width * sin_a),
+        (width * cos_a - height * sin_a, width * sin_a + height * cos_a),
+        (-height * sin_a, height * cos_a)
+    )
     rect_rotated = Rectangle(vertices=vertices_rotated)
     
     # Visualize both rectangles
@@ -77,9 +77,9 @@ def demo_multiple_regions():
     """Demonstrate plotting multiple regions together."""
     print("\nCreating multi-region visualization...")
     
-    circle = Circle(center=[0, 0], radius=3.0)
-    square = Polygon(vertices=[[-2, -2], [2, -2], [2, 2], [-2, 2]])
-    triangle = Polygon(vertices=[[-1, -3], [1, -3], [0, -1]])
+    circle = Circle(center=(0, 0), radius=3.0)
+    square = Polygon(vertices=((-2, -2), (2, -2), (2, 2), (-2, 2)))
+    triangle = Polygon(vertices=((-1, -3), (1, -3), (0, -1)))
     
     fig = visualize_region(
         [circle, square, triangle],

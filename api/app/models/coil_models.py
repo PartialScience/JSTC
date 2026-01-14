@@ -1,73 +1,69 @@
-from typing import Optional, List
+from typing import Tuple, List
 from app.geometry import GeometricRegion, Rectangle
+from dataclasses import dataclass, field
+from abc import abstractmethod
 
-class Topload:
-    """A topload for a 2D tesla coil, defined by a 2D shape."""
+@dataclass(frozen=True)
+class CoilComponent(GeometricRegion):
+    """Base class for coil components with geometric and physical properties."""
     
-    def __init__(self, geometry: GeometricRegion):
-        """
-        Initialize a topload.
-        
-        Args:
-            geometry: A 2D geometric region representing the topload's cross-section
-        """
-        self.geometry = geometry
-
-class SecondaryConductor:
-    """A secondary conductor for a tesla coil"""
+    @abstractmethod
+    def _geometry(self) -> GeometricRegion:
+        """Return the underlying GeometricRegion."""
+        pass
     
-    def __init__(self, start: List[float], end: List[float], wire_dia: float, turns: float, conductivity: float):
-        """
-        Initialize a secondary conductor.
-        
-        Args:
-            start: Starting point of the conductor as a list of two floats [x, y]
-            end: Ending point of the conductor as a list of two floats [x, y]
-            wire_dia: Diameter of the wire
-            turns: Number of turns in the coil
-            conductivity: Electrical conductivity of the conductor
-        """
-        self.start = start
-        self.end = end
-        self.wire_dia = wire_dia
-        self.turns = turns
-        self.conductivity = conductivity
-        self.turns_per_height = turns / (end[1] - start[1])
-        rectangle = Rectangle(vertices=[
-            [start[0] - wire_dia / 2, start[1]],
-            [start[0] + wire_dia / 2, start[1]],
-            [end[0] + wire_dia / 2, end[1]],
-            [end[0] - wire_dia / 2, end[1]],
-        ])
-        self.geometry = rectangle
+    def contains(self, point: List[float]) -> bool:
+        """Check if point is inside by delegating to the wrapped geometry."""
+        return self._geometry.contains(point)
 
-class GroundedConductor: 
-    """A grounded conductor representing a region in space which will be forced to 0V during all computations"""
+@dataclass(frozen=True)
+class ToploadSpec(CoilComponent):
+    """Specification for a topload component with geometric properties."""
+    shape: GeometricRegion
     
-    def __init__(self, geometry: GeometricRegion):
-        """
-        Initialize a grounded conductor.
-        
-        Args:
-            geometry: A 2D geometric region representing the conductor's cross-section
-        """
-        self.geometry = geometry
+    def _geometry(self) -> GeometricRegion:
+        return self.shape
 
-class TeslaCoil: 
-    """Geometric description of a tesla coil"""
-    def __init__(self, 
-        secondary: SecondaryConductor,
-        toploads: Optional[List[Topload]] = None,
-        grounds: Optional[List[GroundedConductor]] = None,
-    ):
-        """
-        Initialize a Tesla coil model.
-        
-        Args:
-            toploads: Optional list of Topload objects
-            secondary: Optional SecondaryConductor object
-        """
-        self.secondary = secondary
-        self.toploads = toploads if toploads is not None else []
-        self.grounds = grounds if grounds is not None else []
-        
+@dataclass(frozen=True)
+class GroundedConductorSpec(CoilComponent):
+    """Specification for a grounded conductor component with geometric properties."""
+    shape: GeometricRegion
+    
+    def _geometry(self) -> GeometricRegion:
+        return self.shape
+
+@dataclass(frozen=True)
+class SecondaryConductorSpec(CoilComponent):
+    """Specification for a secondary conductor with geometric, electrical, and material properties."""
+    start: Tuple[float, float]
+    end: Tuple[float, float]
+    wire_dia: float
+    turns: float
+    conductivity: float
+    
+    def __post_init__(self):
+        """Compute and store the rectangular geometry."""
+        rectangle = Rectangle(vertices=(
+            (self.start[0] - self.wire_dia / 2, self.start[1]),
+            (self.start[0] + self.wire_dia / 2, self.start[1]),
+            (self.end[0] + self.wire_dia / 2, self.end[1]),
+            (self.end[0] - self.wire_dia / 2, self.end[1]),
+        ))
+        # Use object.__setattr__ since frozen=True
+        object.__setattr__(self, '_rectangle', rectangle)
+    
+    @property
+    def turns_per_height(self) -> float:
+        """Turns per unit height of the secondary coil."""
+        return self.turns / (self.end[1] - self.start[1])
+    
+    def _geometry(self) -> GeometricRegion:
+        """Return the cached rectangular geometry."""
+        return self._rectangle
+
+@dataclass(frozen=False)
+class TeslaCoilSpec: 
+    """Specification for a complete Tesla coil including secondary, toploads, and grounds."""
+    secondary: SecondaryConductorSpec
+    toploads: Tuple[ToploadSpec, ...] = field(default_factory=tuple)
+    grounds: Tuple[GroundedConductorSpec, ...] = field(default_factory=tuple)

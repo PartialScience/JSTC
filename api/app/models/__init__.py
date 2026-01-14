@@ -3,16 +3,30 @@ Models package for JSTC API
 """
 
 from .coil_models import (
-    Topload, SecondaryConductor, GroundedConductor, TeslaCoil,
-    BoundaryCondition, BoundaryConditionType, SimulatableTeslaCoil
+    CoilComponent,
+    ToploadSpec,
+    GroundedConductorSpec,
+    SecondaryConductorSpec,
+    TeslaCoilSpec,
+)
+
+from .simulation_models import (
+    BoundaryConditionType,
+    BoundaryCondition,
+    SimulatableTeslaCoil,
+    TeslaCoilSimulation,
 )
 
 __all__ = [
-    'Topload',
-    'SecondaryConductor',
-    'GroundedConductor',
-    'TeslaCoil',
-    'BoundaryCondition',
+    # Coil component classes
+    'CoilComponent',
+    'ToploadSpec',
+    'GroundedConductorSpec',
+    'SecondaryConductorSpec',
+    'TeslaCoilSpec',
+    # Simulation classes
     'BoundaryConditionType',
+    'BoundaryCondition',
     'SimulatableTeslaCoil',
+    'TeslaCoilSimulation',
 ]
