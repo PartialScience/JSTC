@@ -40,7 +40,7 @@ class SecondaryConductorSpec(CoilComponent):
     wire_dia: float
     turns: float
     conductivity: float
-    
+        
     def __post_init__(self):
         """Compute and store the rectangular geometry."""
         rectangle = Rectangle(vertices=(

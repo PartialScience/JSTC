@@ -21,11 +21,24 @@ class BoundaryCondition:
 @dataclass
 class SimulatableTeslaCoil(TeslaCoilSpec):
     """Tesla coil specification extended with simulation domain boundaries and boundary conditions."""
+    
+    discretization_order: int = 30
+    """Number of virtual conductors to break the secondary coil into for matrix calculations"""
+    
     r_max: float
+    """Maximum radial extent of the simulation domain"""
+    
     z_max: float
+    """Maximum vertical extent of the simulation domain"""
+    
     bc_bottom: BoundaryCondition = field(default_factory=BoundaryCondition)
+    """Boundary condition applied at the bottom (z=0) of the simulation domain."""
+    
     bc_top: BoundaryCondition = field(default_factory=BoundaryCondition)
+    """Boundary condition applied at the top (z=z_max) of the simulation domain."""
+    
     bc_right: BoundaryCondition = field(default_factory=BoundaryCondition)
+    """Boundary condition applied at the right boundary (r=r_max) of the simulation domain."""
 
 @dataclass
 class TeslaCoilSimulation:
@@ -139,7 +152,7 @@ class TeslaCoilSecondarySimulation:
             connectivity_matrix: Connectivity matrix (tuples for caching)
             
         Returns:
-            EigenFamily with eigenfrequencies (in Hz) and voltage eigenmodes
+            EigenFamily with eigenfrequencies and voltage eigenmodes
         """
         # Convert tuples to numpy arrays
         C = np.array(capacitance_matrix)
