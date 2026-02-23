@@ -14,15 +14,16 @@ from .types import _EmptySetting
 
 class Config(Settings):
     """
-    Resolved application configuration.
-
-    Inherits ``Settings`` so every field is available directly.
-    Accepts a *base* ``Settings`` and an environment-specific ``Settings``,
-    then merges the environment values on top of the base at construction
-    time.
+    This config class contains all the fileds from the settings class,
+    but accepts two settings objects (base and env) and merges them together.
+    
+    The merge behaviour is:
+        - For every field in *env* that is not ``EMPTY``, the value replaces the
+        corresponding field in *base*.
     """
 
     def __init__(self, base: Settings, env: Settings) -> None:
+        """Merge *env* on top of *base* and initialize the resulting settings."""        
         merged: Settings = self._merge_dataclass(base, env)
         for f in dc_fields(merged):
             object.__setattr__(self, f.name, getattr(merged, f.name))
