@@ -11,11 +11,51 @@ the numerical method used:
   4. Off-diagonal entries are non-positive (negative or zero).
   5. The matrix is positive definite.
 
-Run with: pytest tests/simulation/test_C_matrix_solvers.py -v
+Run with: pytest tests/simulation/matrix_solvers/capacitance/test_capacitance_solvers.py -v
 """
 import pytest
 import numpy as np
 from numpy.testing import assert_allclose
+from app.simulation.matrix_solvers.capacitance import CapacitanceMatrixSolver, FEMCapacitanceMatrixSolver
+
+
+# ---------------------------------------------------------------------------
+# Registry of concrete CapacitanceMatrixSolver implementations.
+# Add new solvers here — ABC conformance tests run automatically.
+# ---------------------------------------------------------------------------
+
+CAPACITANCE_SOLVERS = [
+    pytest.param(FEMCapacitanceMatrixSolver, id="FEM"),
+    # pytest.param(BEMCapacitanceMatrixSolver, id="BEM"),  # ← register future solvers here
+]
+
+
+# ---------------------------------------------------------------------------
+# CapacitanceMatrixSolver ABC tests
+# ---------------------------------------------------------------------------
+
+class TestCapacitanceMatrixSolverABC:
+    """Tests for CapacitanceMatrixSolver abstract base class."""
+
+    def test_cannot_instantiate_directly(self):
+        """The ABC should not be instantiable."""
+        with pytest.raises(TypeError):
+            CapacitanceMatrixSolver()
+
+    @pytest.mark.parametrize("solver_cls", CAPACITANCE_SOLVERS)
+    def test_concrete_is_subclass(self, solver_cls):
+        """Every registered solver should be a subclass of the ABC."""
+        assert issubclass(solver_cls, CapacitanceMatrixSolver)
+
+    @pytest.mark.parametrize("solver_cls", CAPACITANCE_SOLVERS)
+    def test_concrete_has_method(self, solver_cls):
+        """Every registered solver should expose compute_capacitance_matrix."""
+        assert hasattr(solver_cls, "compute_capacitance_matrix")
+
+
+# ---------------------------------------------------------------------------
+# Physical-property tests for all C-matrix implementations
+# ---------------------------------------------------------------------------
 
 # These tests are run against every registered capacitance-matrix solver 
 # See conftest.py for the parameterized fixture that these tests are run against

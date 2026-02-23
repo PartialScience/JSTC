@@ -1,8 +1,10 @@
 from typing import Tuple
 from app.models.coil_models import SecondaryConductorSpec
+from app.simulation.matrix_solvers.inductance.base import InductanceMatrixSolver
 import methodtools as mt
 
-class IntegralInductanceLMatrixSolver:  
+
+class IntegralInductanceLMatrixSolver(InductanceMatrixSolver):  
     
     @mt.lru_cache()
     @staticmethod

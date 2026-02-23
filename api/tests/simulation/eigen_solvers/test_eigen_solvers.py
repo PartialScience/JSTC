@@ -1,18 +1,30 @@
 """
 Unit tests for the eigenvalue and eigencurrent solvers.
 
-Test systems are defined in ``TEST_SYSTEMS`` and parameterized so that both
-solvers are exercised against every (C, L, A) triple automatically.
+Test systems are defined in ``MATRIX_TEST_CASES`` and parameterized so that all
+registered ``EigenSolverBase`` implementations are exercised against every
+(C, L, A) triple automatically.
 
-Run with: pytest tests/simulation/test_eigen_value_solvers.py -v
+Run with: pytest tests/simulation/eigen_solvers/test_eigen_solvers.py -v
 """
 import pytest
 import numpy as np
 from dataclasses import dataclass
 from numpy.testing import assert_allclose
 from scipy import linalg
-from app.simulation.eigen_value_solvers import EigenFrequencySolver, CurrentEigenModeSolver
+from app.simulation.eigen_solvers import EigenSolverBase, VoltageModeEigenSolver
 from app.simulation.types import EigenFamily
+
+
+# ---------------------------------------------------------------------------
+# Registry of concrete EigenSolverBase implementations.
+# Add new solvers here — all tests run automatically for each.
+# ---------------------------------------------------------------------------
+
+EIGEN_SOLVERS = [
+    pytest.param(VoltageModeEigenSolver, id="VoltageModeEigenSolver"),
+    # pytest.param(SomeOtherEigenSolver, id="Other"),  # ← register future solvers here
+]
 
 
 # ---------------------------------------------------------------------------
@@ -45,10 +57,10 @@ class LCASystem:
 
 
 # ---------------------------------------------------------------------------
-# Test systems — add new (C, L, A) triples here
+# Test cases — add new (C, L, A) triples here
 # ---------------------------------------------------------------------------
 
-TEST_SYSTEMS = [
+MATRIX_TEST_CASES = [
     pytest.param(
         LCASystem(
             C=np.diag([1e-12, 2e-12]),
@@ -88,42 +100,80 @@ TEST_SYSTEMS = [
 
 
 # ---------------------------------------------------------------------------
-# Shared fixture — solves the eigenfrequency problem for each test system
+# EigenSolverBase ABC tests
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(params=TEST_SYSTEMS)
-def eigen_system(request):
-    """
-    Return (LCASystem, EigenFamily) for one test system.
+class TestEigenSolverABC:
+    """Tests for EigenSolverBase abstract base class."""
 
-    The EigenFamily is computed once per system by EigenFrequencySolver.
+    def test_cannot_instantiate_directly(self):
+        """The ABC should not be instantiable."""
+        with pytest.raises(TypeError):
+            EigenSolverBase()
+
+    @pytest.mark.parametrize("solver_cls", EIGEN_SOLVERS)
+    def test_concrete_is_subclass(self, solver_cls):
+        """Every registered solver should be a subclass of the ABC."""
+        assert issubclass(solver_cls, EigenSolverBase)
+
+    @pytest.mark.parametrize("solver_cls", EIGEN_SOLVERS)
+    def test_has_compute_eigen_frequencies(self, solver_cls):
+        """Every registered solver should expose compute_eigen_frequencies."""
+        assert hasattr(solver_cls, "compute_eigen_frequencies")
+
+    @pytest.mark.parametrize("solver_cls", EIGEN_SOLVERS)
+    def test_has_compute_voltage_eigen_modes(self, solver_cls):
+        """Every registered solver should expose compute_voltage_eigen_modes."""
+        assert hasattr(solver_cls, "compute_voltage_eigen_modes")
+
+    @pytest.mark.parametrize("solver_cls", EIGEN_SOLVERS)
+    def test_has_compute_current_eigen_modes(self, solver_cls):
+        """Every registered solver should expose compute_current_eigen_modes."""
+        assert hasattr(solver_cls, "compute_current_eigen_modes")
+
+
+# ---------------------------------------------------------------------------
+# Shared fixture — solver x test system cross-product
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(params=EIGEN_SOLVERS)
+def solver_cls(request):
+    """A concrete EigenSolverBase implementation."""
+    return request.param
+
+
+@pytest.fixture(params=MATRIX_TEST_CASES)
+def eigen_system(request, solver_cls):
+    """
+    Return (solver_cls, LCASystem, frequencies, voltage_modes) for one
+    test system x solver combination.
     """
     system: LCASystem = request.param
-    result = EigenFrequencySolver.compute_eigen_frequency_family(
-        capacitance_matrix=_to_nested_tuple(system.C),
-        inductance_matrix=_to_nested_tuple(system.L),
-        connectivity_matrix=_to_nested_tuple(system.A),
-    )
-    return system, result
+    C = _to_nested_tuple(system.C)
+    L = _to_nested_tuple(system.L)
+    A = _to_nested_tuple(system.A)
+
+    freqs = solver_cls.compute_eigen_frequencies(C, L, A)
+    modes = solver_cls.compute_voltage_eigen_modes(C, L, A)
+
+    result = EigenFamily(eigenvalues=list(freqs), eigenvectors=[list(mode) for mode in modes])
+    return solver_cls, system, result
 
 
 # ---------------------------------------------------------------------------
-# EigenFrequencySolver tests
+# Eigen solver tests
 # ---------------------------------------------------------------------------
 
-class TestEigenFrequencySolver:
-    """Tests for EigenFrequencySolver.compute_eigen_frequency_family."""
+class TestEigenSolver:
+    """Tests for eigenfrequency, voltage-mode, and current-mode methods (all solvers)."""
 
     def test_eigenvalue_equation(self, eigen_system):
         """
         Every (omega, V) pair must satisfy the generalized eigenvalue problem:
 
             A L^-1 A^T  V  =  omega^2  C V
-
-        The solver reports f = omega / (2 pi), so we verify:
-            (A L^-1 A^T) V  =  omega^2  C V.
         """
-        system, result = eigen_system
+        _, system, result = eigen_system
         L_inv = linalg.inv(system.L)
         RHS_matrix = system.A @ L_inv @ system.A.T
 
@@ -139,37 +189,26 @@ class TestEigenFrequencySolver:
 
     def test_frequencies_sorted_ascending(self, eigen_system):
         """Eigenfrequencies must be in non-decreasing order."""
-        _, result = eigen_system
+        _, _, result = eigen_system
         freqs = list(result.eigenvalues)
         assert freqs == sorted(freqs), (
             f"Frequencies are not sorted ascending: {freqs}"
         )
-
-
-# ---------------------------------------------------------------------------
-# CurrentEigenModeSolver tests
-# ---------------------------------------------------------------------------
-
-class TestCurrentEigenModeSolver:
-    """Tests for CurrentEigenModeSolver.find_current_modes_from_inductance."""
 
     def test_current_mode_equation(self, eigen_system):
         """
         Every current mode must satisfy:
 
             I = -(j/omega) L^-1 A^T V
-
-        The real part of the RHS is compared against the solver output.
         """
-        system, result = eigen_system
+        solver_cls, system, result = eigen_system
         L_inv = linalg.inv(system.L)
         A_T = system.A.T
 
-        current_modes = CurrentEigenModeSolver.find_current_modes_from_inductance(
-            inverse_inductance_matrix=_to_nested_tuple(L_inv),
-            transpose_connectivity_matrix=_to_nested_tuple(A_T),
-            eigen_frequencies=tuple(result.eigenvalues),
-            voltage_eigenmodes=tuple(tuple(v) for v in result.eigenvectors),
+        current_modes = solver_cls.compute_current_eigen_modes(
+            capacitance_matrix=_to_nested_tuple(system.C),
+            inductance_matrix=_to_nested_tuple(system.L),
+            connectivity_matrix=_to_nested_tuple(system.A),
         )
 
         V = np.array(result.eigenvectors).T  # (N, num_modes)
@@ -182,6 +221,6 @@ class TestCurrentEigenModeSolver:
 
     def test_current_modes_sorted_with_frequencies(self, eigen_system):
         """Current modes must correspond to the ascending-frequency ordering."""
-        _, result = eigen_system
+        _, _, result = eigen_system
         freqs = list(result.eigenvalues)
         assert freqs == sorted(freqs)

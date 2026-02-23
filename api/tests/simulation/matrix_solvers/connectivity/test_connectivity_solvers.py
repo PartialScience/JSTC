@@ -1,10 +1,49 @@
 """
 Unit tests for the connectivity matrix solver (A matrix).
 
-Run with: pytest tests/simulation/test_A_matrix_solvers.py -v
+Run with: pytest tests/simulation/matrix_solvers/connectivity/test_connectivity_solvers.py -v
 """
 import pytest
-from app.simulation.A_matrix_solvers import SeriesConnectivityMatrixSolver
+from app.simulation.matrix_solvers.connectivity import ConnectivityMatrixSolver, SeriesConnectivityMatrixSolver
+
+
+# ---------------------------------------------------------------------------
+# Registry of concrete ConnectivityMatrixSolver implementations.
+# Add new solvers here — ABC conformance tests run automatically.
+# ---------------------------------------------------------------------------
+
+CONNECTIVITY_SOLVERS = [
+    pytest.param(SeriesConnectivityMatrixSolver, id="Series"),
+    # pytest.param(ParallelConnectivityMatrixSolver, id="Parallel"),  # ← register future solvers here
+]
+
+
+# ---------------------------------------------------------------------------
+# ConnectivityMatrixSolver ABC tests
+# ---------------------------------------------------------------------------
+
+class TestConnectivityMatrixSolverABC:
+    """Tests for ConnectivityMatrixSolver abstract base class."""
+
+    def test_cannot_instantiate_directly(self):
+        """The ABC should not be instantiable."""
+        with pytest.raises(TypeError):
+            ConnectivityMatrixSolver()
+
+    @pytest.mark.parametrize("solver_cls", CONNECTIVITY_SOLVERS)
+    def test_concrete_is_subclass(self, solver_cls):
+        """Every registered solver should be a subclass of the ABC."""
+        assert issubclass(solver_cls, ConnectivityMatrixSolver)
+
+    @pytest.mark.parametrize("solver_cls", CONNECTIVITY_SOLVERS)
+    def test_concrete_has_method(self, solver_cls):
+        """Every registered solver should expose compute_connectivity_matrix."""
+        assert hasattr(solver_cls, "compute_connectivity_matrix")
+
+
+# ---------------------------------------------------------------------------
+# SeriesConnectivityMatrixSolver tests
+# ---------------------------------------------------------------------------
 
 
 class TestSeriesConnectivityMatrixSolver:

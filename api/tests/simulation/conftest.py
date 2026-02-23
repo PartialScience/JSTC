@@ -15,13 +15,13 @@ Fixture dependency graph::
    _matrix        _matrix          → Tuple[Tuple[float, ...], ...]
 
 To add a new coil geometry  → edit tests/simulation/test_coils.py
-To add a new solver         → add a pytest.param below and an elif branch
+To add a new solver         → add it to the registry in the corresponding test file
 """
 import pytest
 from app.models.simulation_models import SimulatableTeslaCoil
-from app.simulation.C_matrix_solvers import FEMCapacitanceMatrixSolver
-from app.simulation.L_matrix_solvers import IntegralInductanceLMatrixSolver
 from tests.simulation.test_coils import TEST_COILS
+from tests.simulation.matrix_solvers.capacitance.test_capacitance_solvers import CAPACITANCE_SOLVERS
+from tests.simulation.matrix_solvers.inductance.test_inductance_solvers import INDUCTANCE_SOLVERS
 
 
 # ---------------------------------------------------------------------------
@@ -61,30 +61,25 @@ def coil(request, discretization_order) -> SimulatableTeslaCoil:
 # Parameterized capacitance-matrix fixture
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(params=[
-    pytest.param("fem", id="FEM"),
-    # pytest.param("bem", id="BEM"),  # ← register future solvers here
-])
+@pytest.fixture(params=CAPACITANCE_SOLVERS)
 def capacitance_matrix(request, coil):
     """
     Compute and return a capacitance matrix from the parameterized solver.
 
     Skips automatically when the solver is still a placeholder (returns None).
     """
-    if request.param == "fem":
-        result = FEMCapacitanceMatrixSolver.compute_capacitance_matrix(
-            secondary=coil.secondary,
-            toploads=coil.toploads,
-            grounds=coil.grounds,
-            discretization_order=coil.discretization_order,
-            r_max=coil.r_max,
-            z_max=coil.z_max,
-        )
-    else:
-        raise ValueError(f"Unknown capacitance solver: {request.param}")
+    solver_cls = request.param
+    result = solver_cls.compute_capacitance_matrix(
+        secondary=coil.secondary,
+        toploads=coil.toploads,
+        grounds=coil.grounds,
+        discretization_order=coil.discretization_order,
+        r_max=coil.r_max,
+        z_max=coil.z_max,
+    )
 
     if result is None:
-        pytest.skip(f"Capacitance solver '{request.param}' not yet implemented")
+        pytest.skip(f"Capacitance solver '{solver_cls.__name__}' not yet implemented")
 
     return result
 
@@ -93,25 +88,20 @@ def capacitance_matrix(request, coil):
 # Parameterized inductance-matrix fixture
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(params=[
-    pytest.param("integral", id="Integral"),
-    # pytest.param("analytical", id="Analytical"),  # ← register future solvers here
-])
+@pytest.fixture(params=INDUCTANCE_SOLVERS)
 def inductance_matrix(request, coil):
     """
     Compute and return an inductance matrix from the parameterized solver.
 
     Skips automatically when the solver is still a placeholder (returns None).
     """
-    if request.param == "integral":
-        result = IntegralInductanceLMatrixSolver.compute_inductance_matrix(
-            secondary=coil.secondary,
-            discretization_order=coil.discretization_order,
-        )
-    else:
-        raise ValueError(f"Unknown inductance solver: {request.param}")
+    solver_cls = request.param
+    result = solver_cls.compute_inductance_matrix(
+        secondary=coil.secondary,
+        discretization_order=coil.discretization_order,
+    )
 
     if result is None:
-        pytest.skip(f"Inductance solver '{request.param}' not yet implemented")
+        pytest.skip(f"Inductance solver '{solver_cls.__name__}' not yet implemented")
 
     return result

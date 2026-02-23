@@ -14,7 +14,6 @@ from .simulation_models import (
     BoundaryConditionType,
     BoundaryCondition,
     SimulatableTeslaCoil,
-    TeslaCoilSimulation,
 )
 
 __all__ = [
@@ -24,9 +23,8 @@ __all__ = [
     'GroundedConductorSpec',
     'SecondaryConductorSpec',
     'TeslaCoilSpec',
-    # Simulation classes
+    # Simulation domain models
     'BoundaryConditionType',
     'BoundaryCondition',
     'SimulatableTeslaCoil',
-    'TeslaCoilSimulation',
 ]

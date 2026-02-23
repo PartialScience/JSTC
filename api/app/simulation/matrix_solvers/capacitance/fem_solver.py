@@ -1,8 +1,10 @@
 from typing import Tuple
 from app.models.coil_models import ToploadSpec, GroundedConductorSpec, SecondaryConductorSpec
+from app.simulation.matrix_solvers.capacitance.base import CapacitanceMatrixSolver
 import methodtools as mt
 
-class FEMCapacitanceMatrixSolver:
+
+class FEMCapacitanceMatrixSolver(CapacitanceMatrixSolver):
     """Use the Finite Element Method to compute the capacitance matrix from coil geometry."""
     
     @mt.lru_cache()
@@ -22,4 +24,3 @@ class FEMCapacitanceMatrixSolver:
         Note: Tuples are used instead of lists to enable proper caching.
         """
         pass
-

@@ -1,8 +1,10 @@
 from typing import Tuple
+from app.simulation.matrix_solvers.connectivity.base import ConnectivityMatrixSolver
 import methodtools as mt
 
-class SeriesConnectivityMatrixSolver:
-    """Compute a standard connectivity matrix for a Tesla coil system."""
+
+class SeriesConnectivityMatrixSolver(ConnectivityMatrixSolver):
+    """Compute a standard series connectivity matrix for a Tesla coil system."""
     
     @mt.lru_cache()
     @staticmethod
