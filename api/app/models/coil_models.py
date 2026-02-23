@@ -16,6 +16,10 @@ class CoilComponent(GeometricRegion):
         """Check if point is inside by delegating to the wrapped geometry."""
         return self._geometry.contains(point)
 
+    def bounding_box(self) -> List[Tuple[float, float]]:
+        """Return the bounding box by delegating to the wrapped geometry."""
+        return self._geometry.bounding_box()
+
 @dataclass(frozen=True)
 class ToploadSpec(CoilComponent):
     """Specification for a topload component with geometric properties."""

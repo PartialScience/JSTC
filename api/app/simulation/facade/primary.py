@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-import formulas as formulas
+import app.formulas as formulas
 
 if TYPE_CHECKING:
     from app.simulation.facade.simulation import TeslaCoilSimulation
