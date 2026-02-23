@@ -4,7 +4,6 @@ pydantic==2.5.0
 pydantic-settings==2.1.0
 python-multipart==0.0.6
 sqlalchemy==2.0.23
-dynaconf==3.2.4
 matplotlib==3.10.8
 mpi4py==4.1.1
 swig==4.4.0

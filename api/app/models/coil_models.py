@@ -56,14 +56,28 @@ class SecondaryConductorSpec(CoilComponent):
     def turns_per_height(self) -> float:
         """Turns per unit height of the secondary coil."""
         return self.turns / (self.end[1] - self.start[1])
+        
+    def _geometry(self) -> GeometricRegion:
+        """Return the stored rectangular geometry."""
+        return self._rectangle
+    
+    def get_geometry(self) -> GeometricRegion:
+        """Return the internal geometry of the secondary conductor."""
+        return self._geometry()
+
+@dataclass(frozen=True)
+class SecondaryConductorSegment(CoilComponent):
+    geometry: GeometricRegion
+    turns: float
+    conductivity: float
     
     def _geometry(self) -> GeometricRegion:
-        """Return the cached rectangular geometry."""
-        return self._rectangle
+        return self.geometry
 
 @dataclass(frozen=False)
 class TeslaCoilSpec: 
     """Specification for a complete Tesla coil including secondary, toploads, and grounds."""
+    # TODO: Add dataclass structure for primary coil
     secondary: SecondaryConductorSpec
     toploads: Tuple[ToploadSpec, ...] = field(default_factory=tuple)
     grounds: Tuple[GroundedConductorSpec, ...] = field(default_factory=tuple)

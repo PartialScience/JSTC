@@ -7,24 +7,9 @@ through the `contains()` method.
 
 """
 from typing import List, Tuple
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-class GeometricRegion(ABC):
-    """Base class for any geometric region."""
-    
-    @abstractmethod
-    def contains(self, point: List[float]) -> bool:
-        """
-        Determine if a given point (vector) is inside the region.
-        
-        Args:
-            point: A list of coordinates representing a point
-            
-        Returns:
-            True if the point is inside the region, False otherwise
-        """
-        pass
+from .base_geometric_region import GeometricRegion
 
 
 @dataclass(frozen=True)
@@ -47,6 +32,13 @@ class Circle(GeometricRegion):
         distance_squared = dx * dx + dy * dy
         
         return distance_squared <= self.radius * self.radius
+
+    def bounding_box(self) -> List[Tuple[float, float]]:
+        """Return the bounding box of the circle."""
+        return [
+            (self.center[0] - self.radius, self.center[0] + self.radius),
+            (self.center[1] - self.radius, self.center[1] + self.radius),
+        ]
 
 @dataclass(frozen=True)
 class Polygon(GeometricRegion):
@@ -85,6 +77,12 @@ class Polygon(GeometricRegion):
                 inside = not inside
         
         return inside
+
+    def bounding_box(self) -> List[Tuple[float, float]]:
+        """Return the bounding box of the polygon."""
+        xs = [v[0] for v in self.vertices]
+        ys = [v[1] for v in self.vertices]
+        return [(min(xs), max(xs)), (min(ys), max(ys))]
 
 @dataclass(frozen=True)
 class Rectangle(Polygon):

@@ -9,7 +9,7 @@ import matplotlib.patches as mpatches
 from matplotlib.lines import Line2D
 import numpy as np
 from typing import List, Optional, Tuple, Union
-from .regions import GeometricRegion
+from .base_geometric_region import GeometricRegion
 
 
 def _get_region_bounds(region: GeometricRegion) -> Tuple[float, float, float, float]:

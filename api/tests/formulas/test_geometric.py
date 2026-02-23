@@ -39,6 +39,7 @@ class TestConicalHelixArclength:
 
     @pytest.mark.parametrize("r1, r2, h1, h2, n, expected", ARCLENGTH_CASES)
     def test_arclength(self, r1, r2, h1, h2, n, expected):
+        """Test that the computed arclength matches the expected value for each case."""
         result = conical_helix_arclength(r1, r2, h1, h2, n)
         assert_allclose(result, expected, rtol=1e-10)
     

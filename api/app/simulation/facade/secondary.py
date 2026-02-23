@@ -89,8 +89,20 @@ class SecondaryView:
         return 1/coil.secondary.turns_per_height
 
     @property
-    def wire_length(self) -> float:
+    def conductor_length(self) -> float:
+        """Total length of the conductor/wire making up the secondary coil."""
         (r1, h1) = self._sim.coil.secondary.start
         (r2, h2) = self._sim.coil.secondary.end
         n = self._sim.coil.secondary.turns
         return formulas.conical_helix_arclength(r1, r2, h1, h2, n)
+    
+    @property
+    def dc_resistance(self) -> float:
+        """DC resistance of the secondary coil."""
+        # TODO: Probably move condutivity off of the coil spec. Not exactly sure where tho yet
+        coil = self._sim.coil
+        length = self.conductor_length
+        conductivity = coil.secondary.conductivity
+        wire_area = np.pi * (coil.secondary.wire_dia / 2) ** 2
+        return length / (conductivity * wire_area)
+        
