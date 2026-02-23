@@ -13,6 +13,11 @@ from .simple_regions import (
     Polygon,
     Rectangle
 )
+from .composite_regions import (
+    RegionUnion,
+    RegionIntersection,
+    HorizontalSliceRegion
+)
 
 from .visualization import visualize_region
 
@@ -24,4 +29,7 @@ __all__ = [
     'Rectangle',
     # Visualization
     'visualize_region',
+    'RegionUnion',
+    'RegionIntersection',
+    'HorizontalSliceRegion',
 ]
