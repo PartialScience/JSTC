@@ -6,7 +6,7 @@ and the ``@settings_dataclass`` decorator.
 """
 
 from dataclasses import dataclass, field
-from typing import Union, get_args, get_origin
+from typing import TypeAlias, TypeVar, Union, get_args, get_origin
 
 
 class _EmptySetting:
@@ -28,16 +28,15 @@ EMPTY = _EmptySetting()
 """Module-level singleton used as the default for all settings fields."""
 
 
-class SettingsValue:
-    """
-    Type wrapper: ``SettingsValue[T]`` resolves to ``Union[T, _EmptySetting]``.
+_T = TypeVar("_T")
 
-    Used in combination with ``@settings_dataclass`` which auto-defaults
-    any ``SettingsValue`` field to ``EMPTY``.
-    """
+SettingsValue: TypeAlias = Union[_T, _EmptySetting]
+"""
+Generic type alias: ``SettingsValue[T]`` resolves to ``Union[T, _EmptySetting]``.
 
-    def __class_getitem__(cls, item):
-        return Union[item, _EmptySetting]
+Used in combination with ``@settings_dataclass`` which auto-defaults
+any ``SettingsValue`` field to ``EMPTY``.
+"""
 
 
 def _empty() -> _EmptySetting:
