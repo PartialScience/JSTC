@@ -3,11 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 # Import application modules
-from app.core.config import get_settings
+from app.config import Config, base_settings, local_settings
 from app.routers import items, health
 
-# Get settings
-settings = get_settings()
+# Settings
+settings = Config(base=base_settings, env=local_settings)
 
 # Create FastAPI instance
 app = FastAPI(
@@ -40,7 +40,7 @@ async def read_root():
     return {
         "message": f"Welcome to {settings.api.title}",
         "version": settings.api.version,
-        "environment": settings.current_env,
+        "environment": settings.environment,
         "docs_url": settings.api.docs_url,
         "health_check": "/health"
     }
@@ -50,5 +50,5 @@ if __name__ == "__main__":
         "main:app",
         host=settings.api.host,
         port=settings.api.port,
-        reload=settings.api.debug
+        reload=settings.api.uvicorn_reload,
     )
