@@ -16,7 +16,7 @@ class EigenFrequencySolver:
     ) -> EigenFamily:
         """
         Solve the generalized eigenvalue problem for the system:
-        ω² C V = -A L⁻¹ Aᵀ V
+        ω² C V = A L⁻¹ Aᵀ V
         
         Args:
             capacitance_matrix: Capacitance matrix (C)
@@ -31,9 +31,9 @@ class EigenFrequencySolver:
         L = np.array(inductance_matrix)
         A = np.array(connectivity_matrix)
         
-        # Compute the right-hand side matrix: -A L⁻¹ Aᵀ
+        # Compute the right-hand side matrix: A L⁻¹ Aᵀ
         L_inv = linalg.inv(L)
-        RHS = -A @ L_inv @ A.T
+        RHS = A @ L_inv @ A.T
         
         # Solve generalized eigenvalue problem: ω² C V = RHS V
         # This is equivalent to: RHS V = ω² C V
@@ -43,7 +43,7 @@ class EigenFrequencySolver:
         # ω² is the eigenvalue, so ω = sqrt(eigenvalue)
         # f = ω / (2π)
         omega_squared = np.real(eigenvalues)
-        omega = np.sqrt(np.abs(omega_squared))
+        omega = np.sqrt(omega_squared)
         frequencies = omega / (2 * np.pi)
         
         # Sort by frequency (ascending)

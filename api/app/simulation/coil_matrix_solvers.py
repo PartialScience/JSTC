@@ -45,7 +45,7 @@ class FEMCIntegralIMatrixSolver(
     IntegralInductanceLMatrixSolver,
     SeriesConnectivityMatrixSolver
 ):
-    """Implementation of TeslaCoilMatrixSolver using FEM for capacitance and integral method for inductance."""
+    """Concrete class implementation of TeslaCoilMatrixSolver using FEM for capacitance and integral method for inductance."""
     
     def __init__(self,
         secondary: SecondaryConductorSpec, 

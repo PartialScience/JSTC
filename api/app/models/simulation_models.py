@@ -18,18 +18,18 @@ class BoundaryCondition:
     bc_type: BoundaryConditionType = BoundaryConditionType.DIRICHLET
     value: float = 0.0
         
-@dataclass
+@dataclass(kw_only=True)
 class SimulatableTeslaCoil(TeslaCoilSpec):
     """Tesla coil specification extended with simulation domain boundaries and boundary conditions."""
-    
-    discretization_order: int = 30
-    """Number of virtual conductors to break the secondary coil into for matrix calculations"""
     
     r_max: float
     """Maximum radial extent of the simulation domain"""
     
     z_max: float
     """Maximum vertical extent of the simulation domain"""
+    
+    discretization_order: int = 30
+    """Number of virtual conductors to break the secondary coil into for matrix calculations"""
     
     bc_bottom: BoundaryCondition = field(default_factory=BoundaryCondition)
     """Boundary condition applied at the bottom (z=0) of the simulation domain."""
