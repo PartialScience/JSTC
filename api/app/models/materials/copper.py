@@ -1,0 +1,21 @@
+from .base_material import MaterialProperties
+
+class Copper(MaterialProperties):
+    """Material properties for copper."""
+    
+    def conductivity(self, T: float) -> float:
+        """Return the conductivity of copper at a given temperature T.
+        
+        Args:
+            T: Temperature in Kelvin
+        Returns:
+            Conductivity in Siemens per meter (S/m)
+        """
+        # Empirical formula for copper conductivity as a function of temperature
+        # σ(T) = σ0 / (1 + α * (T - T0))
+        # where σ0 is the conductivity at reference temperature T0, and α is the temperature coefficient
+        σ0 = 5.96e7  # Conductivity of copper at 20°C (293K) in S/m
+        T0 = 293.15  # Reference temperature in Kelvin
+        α = 0.00393  # Temperature coefficient for copper
+        
+        return σ0 / (1 + α * (T - T0))
