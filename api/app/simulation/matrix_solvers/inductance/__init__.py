@@ -1,7 +1,7 @@
-from app.simulation.matrix_solvers.inductance.base import InductanceMatrixSolver
-from app.simulation.matrix_solvers.inductance.integral_solver import IntegralInductanceLMatrixSolver
+from .base import InductanceMatrixSolver
+from .coaxial_ring_solver import CoaxialRingInductanceLMatrixSolver
 
 __all__ = [
     "InductanceMatrixSolver",
-    "IntegralInductanceLMatrixSolver",
+    "CoaxialRingInductanceLMatrixSolver",
 ]
