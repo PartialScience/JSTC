@@ -15,9 +15,16 @@ from .regions import (
     RegionUnion,
     RegionIntersection,
     HorizontalSliceRegion,
+    OffsetRegion
 )
 
 from .visualization import visualize_region
+
+from .curves import (
+    ParametricCurve,
+    LineSegment,
+    SubCurve,
+)   
 
 __all__ = [
     # Region classes
@@ -30,4 +37,9 @@ __all__ = [
     'RegionUnion',
     'RegionIntersection',
     'HorizontalSliceRegion',
+    'OffsetRegion',
+    # Curves
+    'ParametricCurve',
+    'LineSegment',
+    'SubCurve',
 ]

@@ -35,13 +35,32 @@ class ParametricCurve(ABC):
         ...
     
     @abstractmethod
+    def distance_to_curve_for_range(self, point: tuple[float, ...], t1: float, t2: float) -> float:
+        """
+        Provide the shortest distance from a given point to the portion of
+        the curve restricted to the parameter range [t1, t2].
+        
+        Args:
+            point: A tuple of floats representing the coordinates of the point
+            t1: The start of the parameter range
+            t2: The end of the parameter range
+            
+        Returns:
+            The shortest distance from the point to the curve over [t1, t2]
+        """
+        ...
+    
+    @abstractmethod
+    def bounding_box_for_range(self, t1: float, t2: float) -> List[Tuple[float, float]]:
+        """Return the bounding box of the curve over parameter range [t1, t2]
+        as a list of (min, max) tuples for each dimension."""
+        ...
+
     def distance_to_curve(self, point: tuple[float, ...]) -> float:
         """
         Provide the shortest distance from a given point to the curve.
         
-        While this may seem like a strange way to represent parametric curves,
-        it is necessary for building offset regions from them, which is their
-        main purpose in this codebase. 
+        Delegates to distance_to_curve_for_range over the full parameter domain.
         
         Args:
             point: A tuple of floats representing the coordinates of the point
@@ -49,9 +68,12 @@ class ParametricCurve(ABC):
         Returns:
             The shortest distance from the point to the curve
         """
-        ...
-    
+        return self.distance_to_curve_for_range(point, self.t_min, self.t_max)
+
     def bounding_box(self) -> List[Tuple[float, float]]:
-        """Return the bounding box of the curve as a list of (min, max) tuples for each dimension."""
-        ...
+        """Return the bounding box of the curve as a list of (min, max) tuples for each dimension.
+        
+        Delegates to bounding_box_for_range over the full parameter domain.
+        """
+        return self.bounding_box_for_range(self.t_min, self.t_max)
         

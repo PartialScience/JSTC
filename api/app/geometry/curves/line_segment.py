@@ -34,8 +34,8 @@ class LineSegment(ParametricCurve):
         y = self.start[1] + t * (self.end[1] - self.start[1])
         return (x, y)
     
-    def distance_to_curve(self, point: tuple[float, float]) -> float:
-        """Provide the shortest distance from a given point to the line segment."""
+    def distance_to_curve_for_range(self, point: tuple[float, float], t1: float, t2: float) -> float:
+        """Provide the shortest distance from a given point to the line segment over [t1, t2]."""
         s1 = self.start
         s2 = self.end
 
@@ -50,14 +50,16 @@ class LineSegment(ParametricCurve):
         # Optimal t on the full line: t_hat = <p - s1, s2 - s1> / ||s2 - s1||^2
         t_hat = ((point[0] - s1[0]) * dx + (point[1] - s1[1]) * dy) / seg_len_sq
 
-        # Project back to [0, 1]
-        t_star = min(max(t_hat, 0.0), 1.0)
+        # Project back to [t1, t2]
+        t_star = min(max(t_hat, t1), t2)
 
         # Nearest point on the segment
         nearest = self.point_at(t_star)
 
         return ((point[0] - nearest[0]) ** 2 + (point[1] - nearest[1]) ** 2) ** 0.5
     
-    def bounding_box(self) -> List[Tuple[float, float]]:
-        """Return the bounding box of the line based on its end points"""
-        return [(min(dim), max(dim)) for dim in zip(self.start, self.end)]
+    def bounding_box_for_range(self, t1: float, t2: float) -> List[Tuple[float, float]]:
+        """Return the bounding box of the line segment over parameter range [t1, t2]."""
+        p1 = self.point_at(t1)
+        p2 = self.point_at(t2)
+        return [(min(dim), max(dim)) for dim in zip(p1, p2)]
