@@ -9,7 +9,8 @@ The ``coil`` fixture in conftest.py consumes this list, so every coil is
 automatically cross-produced with every discretization order and every solver.
 """
 import pytest
-from app.models.coil_models import SecondaryConductorSpec, ToploadSpec, GroundedConductorSpec
+from app.models.coil_models import LinearSecondaryConductorSpec, ToploadSpec, GroundedConductorSpec
+from app.models.materials import Material
 from app.geometry import Circle, Rectangle
 
 
@@ -26,15 +27,15 @@ from app.geometry import Circle, Rectangle
 TEST_COILS = [
     pytest.param(
         dict(
-            secondary=SecondaryConductorSpec(
+            secondary=LinearSecondaryConductorSpec(
+                material=Material.COPPER,
+                turn_fxn=lambda t: 895 * t,
                 start=(2.26925, 23.0),
                 end=(2.26925, 44.8085),
                 wire_dia=0.020101,
-                turns=895,
-                conductivity=5.8e7, # Conductivity of copper
             ),
             toploads=(
-                ToploadSpec(shape=Circle(center=(10.5, 48.8085), radius=3.125)),),
+                ToploadSpec(material=Material.ALUMINUM, shape=Circle(center=(10.5, 48.8085), radius=3.125)),),
             grounds=(),
             r_max=100,
             z_max=150,
