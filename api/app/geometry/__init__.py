@@ -7,16 +7,14 @@ This package provides geometric region classes and visualization utilities
 for defining and working with spatial domains in 2D space.
 """
 
-from .base_geometric_region import GeometricRegion
-from .simple_regions import (
+from .regions import (
+    GeometricRegion,
     Circle,
     Polygon,
-    Rectangle
-)
-from .composite_regions import (
+    Rectangle,
     RegionUnion,
     RegionIntersection,
-    HorizontalSliceRegion
+    HorizontalSliceRegion,
 )
 
 from .visualization import visualize_region

@@ -6,7 +6,7 @@ composed from simpler geometric primitives.
 """
 import pytest
 from app.geometry import Circle, Polygon, Rectangle
-from app.geometry.composite_regions import (
+from app.geometry.regions.composite_regions import (
     RegionUnion,
     RegionIntersection,
     HorizontalSliceRegion,
