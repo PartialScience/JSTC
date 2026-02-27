@@ -1,13 +1,5 @@
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
-from enum import Enum
-from .copper import Copper
-from .aluminum import Aluminum
-
-class Material(Enum):
-    """Enum representing different materials with their properties."""
-    COPPER = Copper()
-    ALUMINUM = Aluminum()
 
 @dataclass(frozen=True)
 class MaterialProperties(ABC):
