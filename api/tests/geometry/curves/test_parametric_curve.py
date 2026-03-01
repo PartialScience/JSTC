@@ -10,7 +10,6 @@ MUST hold regardless of the concrete curve type:
   3. t_min < t_max.
   4. point_at returns a tuple with consistent dimensionality.
   5. Points sampled via point_at have distance 0 from the curve.
-  6. Points sampled via point_at fall inside the bounding box.
 
 Run with: pytest tests/geometry/curves/test_parametric_curve.py -v
 """
@@ -53,7 +52,7 @@ class TestParametricCurveABC:
 
     def test_has_required_methods(self, curve_class):
         """Every concrete curve class must expose the required API surface."""
-        for attr in ("point_at", "distance_to_curve", "bounding_box", "t_min", "t_max"):
+        for attr in ("point_at", "distance_to_curve", "t_min", "t_max"):
             assert hasattr(curve_class, attr), f"{curve_class.__name__} missing {attr}"
 
 
@@ -101,43 +100,6 @@ class TestParametricCurveProperties:
             assert dist == pytest.approx(0.0, abs=1e-10), (
                 f"point_at({t}) = {pt} has distance {dist} from curve; "
                 f"expected 0"
-            )
-
-    # ------------------------------------------------------------------
-    # every point ON the curve lies within the bounding box
-    # ------------------------------------------------------------------
-
-    def test_points_on_curve_inside_bounding_box(self, curve_instance):
-        """
-        Every point returned by point_at(t) must lie within (or on the
-        boundary of) the curve's bounding box.
-        """
-        bbox = curve_instance.bounding_box()
-        assert bbox is not None, "bounding_box() returned None"
-
-        for t in _sample_t_values(curve_instance):
-            pt = curve_instance.point_at(t)
-            for dim_idx, (lo, hi) in enumerate(bbox):
-                assert lo - 1e-10 <= pt[dim_idx] <= hi + 1e-10, (
-                    f"point_at({t}) = {pt}: coordinate {dim_idx} = "
-                    f"{pt[dim_idx]} outside bbox [{lo}, {hi}]"
-                )
-
-    def test_bounding_box_dimension_matches_points(self, curve_instance):
-        """Bounding box must have one (min, max) pair per coordinate dimension."""
-        bbox = curve_instance.bounding_box()
-        pt = curve_instance.point_at(curve_instance.t_min)
-        assert len(bbox) == len(pt), (
-            f"Bounding box has {len(bbox)} dimensions but points have "
-            f"{len(pt)} coordinates"
-        )
-
-    def test_bounding_box_min_leq_max(self, curve_instance):
-        """For each dimension of the bounding box, min ≤ max."""
-        bbox = curve_instance.bounding_box()
-        for dim_idx, (lo, hi) in enumerate(bbox):
-            assert lo <= hi + 1e-10, (
-                f"Bounding box dimension {dim_idx}: min={lo} > max={hi}"
             )
 
     def test_distance_to_curve_non_negative(self, curve_instance):

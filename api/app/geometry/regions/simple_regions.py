@@ -33,13 +33,6 @@ class Circle(GeometricRegion):
         
         return distance_squared <= self.radius * self.radius
 
-    def bounding_box(self) -> List[Tuple[float, float]]:
-        """Return the bounding box of the circle."""
-        return [
-            (self.center[0] - self.radius, self.center[0] + self.radius),
-            (self.center[1] - self.radius, self.center[1] + self.radius),
-        ]
-
 @dataclass(frozen=True)
 class Polygon(GeometricRegion):
     """A general polygon defined by a tuple of vertices."""
@@ -77,12 +70,6 @@ class Polygon(GeometricRegion):
                 inside = not inside
         
         return inside
-
-    def bounding_box(self) -> List[Tuple[float, float]]:
-        """Return the bounding box of the polygon."""
-        xs = [v[0] for v in self.vertices]
-        ys = [v[1] for v in self.vertices]
-        return [(min(xs), max(xs)), (min(ys), max(ys))]
 
 @dataclass(frozen=True)
 class Rectangle(Polygon):

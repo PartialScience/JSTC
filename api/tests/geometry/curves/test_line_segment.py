@@ -136,31 +136,3 @@ class TestLineSegmentProperties:
         distance to that point."""
         seg = LineSegment(start=(1, 1), end=(1, 1))
         assert seg.distance_to_curve((4, 5)) == pytest.approx(5.0)
-
-    def test_bounding_box_horizontal(self):
-        """Bounding box of a horizontal segment."""
-        seg = LineSegment(start=(1, 3), end=(5, 3))
-        bbox = seg.bounding_box()
-        assert bbox[0] == pytest.approx((1, 5))  # x range
-        assert bbox[1] == pytest.approx((3, 3))  # y range
-
-    def test_bounding_box_diagonal(self):
-        """Bounding box of a diagonal segment."""
-        seg = LineSegment(start=(-2, -1), end=(4, 7))
-        bbox = seg.bounding_box()
-        assert bbox[0] == pytest.approx((-2, 4))
-        assert bbox[1] == pytest.approx((-1, 7))
-
-    def test_bounding_box_reversed_coords(self):
-        """Bounding box should handle start > end in any dimension."""
-        seg = LineSegment(start=(5, 8), end=(1, 2))
-        bbox = seg.bounding_box()
-        assert bbox[0] == pytest.approx((1, 5))
-        assert bbox[1] == pytest.approx((2, 8))
-
-    def test_bounding_box_degenerate(self):
-        """Bounding box of a degenerate (zero-length) segment."""
-        seg = LineSegment(start=(3, 7), end=(3, 7))
-        bbox = seg.bounding_box()
-        assert bbox[0] == pytest.approx((3, 3))
-        assert bbox[1] == pytest.approx((7, 7))

@@ -1,6 +1,5 @@
 
 from app.geometry.curves.base import ParametricCurve
-from typing import List, Tuple
 
 class LineSegment(ParametricCurve):
     """
@@ -34,6 +33,18 @@ class LineSegment(ParametricCurve):
         y = self.start[1] + t * (self.end[1] - self.start[1])
         return (x, y)
     
+    def derivative_at(self, t: float) -> tuple[float, float]:
+        """Get the tangent vector of the line segment (constant for all t)."""
+        return (self.end[0] - self.start[0], self.end[1] - self.start[1])
+    
+    def arc_length_between(self, t1: float, t2: float) -> float:
+        """Compute the arc length of the line segment between parameters t1 and t2."""        
+        # The length of the full line segment
+        full_length = ((self.end[0] - self.start[0]) ** 2 + (self.end[1] - self.start[1]) ** 2) ** 0.5
+        
+        # The arc length between t1 and t2 is proportional to the difference in parameters
+        return full_length * (t2 - t1)
+    
     def distance_to_curve_for_range(self, point: tuple[float, float], t1: float, t2: float) -> float:
         """Provide the shortest distance from a given point to the line segment over [t1, t2]."""
         s1 = self.start
@@ -57,9 +68,3 @@ class LineSegment(ParametricCurve):
         nearest = self.point_at(t_star)
 
         return ((point[0] - nearest[0]) ** 2 + (point[1] - nearest[1]) ** 2) ** 0.5
-    
-    def bounding_box_for_range(self, t1: float, t2: float) -> List[Tuple[float, float]]:
-        """Return the bounding box of the line segment over parameter range [t1, t2]."""
-        p1 = self.point_at(t1)
-        p2 = self.point_at(t2)
-        return [(min(dim), max(dim)) for dim in zip(p1, p2)]

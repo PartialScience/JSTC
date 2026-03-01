@@ -1,7 +1,7 @@
 """
 Unit tests for simple geometric region classes (Circle, Polygon, Rectangle).
 
-These tests verify creation, validation, point containment, and bounding boxes.
+These tests verify creation, validation, and point containment.
 """
 import pytest
 import math
@@ -62,18 +62,7 @@ class TestCircle:
         assert circle.contains([12, 20]) is True  # inside
         assert circle.contains([14, 20]) is False  # outside
 
-    def test_bounding_box_origin(self):
-        """Test bounding box of a circle at the origin."""
-        circle = Circle(center=(0, 0), radius=5.0)
-        box = circle.bounding_box()
-        assert box == [(-5.0, 5.0), (-5.0, 5.0)]
 
-    def test_bounding_box_offset(self):
-        """Test bounding box of a circle with an offset center."""
-        circle = Circle(center=(10, 20), radius=3.0)
-        box = circle.bounding_box()
-        assert box == [(7.0, 13.0), (17.0, 23.0)]
-    
 class TestPolygon:
     """Tests for the Polygon class."""
     
@@ -149,20 +138,6 @@ class TestPolygon:
         assert l_shape.contains([0.5, 1.5]) is True  # inside upper part
         assert l_shape.contains([1.5, 1.5]) is False  # in the cutout
 
-    def test_bounding_box_triangle(self):
-        """Test bounding box of a triangle."""
-        triangle = Polygon(vertices=((0, 0), (4, 0), (2, 3)))
-        box = triangle.bounding_box()
-        assert box == [(0, 4), (0, 3)]
-
-    def test_bounding_box_concave(self):
-        """Test bounding box of a concave (L-shaped) polygon."""
-        l_shape = Polygon(vertices=(
-            (0, 0), (2, 0), (2, 1), (1, 1), (1, 2), (0, 2)
-        ))
-        box = l_shape.bounding_box()
-        assert box == [(0, 2), (0, 2)]
-
 
 class TestRectangle:
     """Tests for the Rectangle class."""
@@ -215,18 +190,3 @@ class TestRectangle:
         # Verify it's a Polygon instance
         assert isinstance(rect, Polygon)
         assert isinstance(rect, GeometricRegion)
-
-    def test_bounding_box_axis_aligned(self):
-        """Test bounding box of an axis-aligned rectangle."""
-        rect = Rectangle(vertices=((0, 0), (3, 0), (3, 2), (0, 2)))
-        box = rect.bounding_box()
-        assert box == [(0, 3), (0, 2)]
-
-    def test_bounding_box_rotated(self):
-        """Test bounding box of a rotated rectangle."""
-        s = math.sqrt(2) / 2
-        rect = Rectangle(vertices=(
-            (s, 0), (0, s), (-s, 0), (0, -s)
-        ))
-        box = rect.bounding_box()
-        assert box == [(-s, s), (-s, s)]

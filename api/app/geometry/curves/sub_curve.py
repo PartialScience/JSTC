@@ -3,7 +3,6 @@ A wrapper that restricts an existing ParametricCurve to a sub-range [t1, t2].
 """
 
 from app.geometry.curves.base import ParametricCurve
-from typing import List, Tuple
 
 
 class SubCurve(ParametricCurve):
@@ -43,10 +42,14 @@ class SubCurve(ParametricCurve):
     def point_at(self, t: float) -> tuple[float, ...]:
         return self._parent_curve.point_at(t)
 
+    def derivative_at(self, t: float) -> tuple[float, ...]:
+        """Delegate to the parent curve's derivative computation."""
+        return self._parent_curve.derivative_at(t)
+
+    def arc_length_between(self, t1: float, t2: float) -> float:
+        """Delegate to the parent curve's range-based arc length computation."""
+        return self._parent_curve.arc_length_between(t1, t2)
+
     def distance_to_curve_for_range(self, point: tuple[float, ...], t1: float, t2: float) -> float:
         """Delegate to the parent curve's range-based distance computation."""
         return self._parent_curve.distance_to_curve_for_range(point, t1, t2)
-
-    def bounding_box_for_range(self, t1: float, t2: float) -> List[Tuple[float, float]]:
-        """Delegate to the parent curve's range-based bounding box computation."""
-        return self._parent_curve.bounding_box_for_range(t1, t2)
