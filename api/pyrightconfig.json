@@ -1,0 +1,10 @@
+{
+  "include": [
+    "app"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "."
+    }
+  ]
+}
