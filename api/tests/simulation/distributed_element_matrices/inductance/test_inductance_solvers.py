@@ -5,17 +5,21 @@ These tests run against every solver registered in the ``inductance_matrix``
 fixture in conftest.py.  They verify properties that MUST hold regardless of
 the numerical method used:
 
-  1. The matrix is square (N×N).
+  1. The matrix is square (NxN).
   2. The matrix is symmetric.
   3. Main-diagonal entries (self-inductance) are positive.
   4. The matrix is positive definite.
 
 Run with: pytest tests/simulation/matrix_solvers/inductance/test_inductance_solvers.py -v
 """
+import math
 import pytest
 import numpy as np
 from numpy.testing import assert_allclose
-from app.simulation.matrix_solvers.inductance import InductanceMatrixSolver, IntegralInductanceLMatrixSolver
+from app.models.coil_models import LinearSecondaryConductorSpec
+from app.models.materials import Material
+from app.simulation.coil_discretizers.uniform_arclength_discretizer import UniformArcLengthDiscretizer
+from app.simulation.distributed_element_matrices.inductance import InductanceMatrixSolver, CoaxialRingInductanceLMatrixSolver
 
 
 # ---------------------------------------------------------------------------
@@ -24,7 +28,7 @@ from app.simulation.matrix_solvers.inductance import InductanceMatrixSolver, Int
 # ---------------------------------------------------------------------------
 
 INDUCTANCE_SOLVERS = [
-    pytest.param(IntegralInductanceLMatrixSolver, id="Integral"),
+    pytest.param(CoaxialRingInductanceLMatrixSolver, id="CoaxialRing"),
     # pytest.param(AnalyticalInductanceSolver, id="Analytical"),  # ← register future solvers here
 ]
 
@@ -48,8 +52,8 @@ class TestInductanceMatrixSolverABC:
 
     @pytest.mark.parametrize("solver_cls", INDUCTANCE_SOLVERS)
     def test_concrete_has_method(self, solver_cls):
-        """Every registered solver should expose compute_inductance_matrix."""
-        assert hasattr(solver_cls, "compute_inductance_matrix")
+        """Every registered solver should expose geometric_inductance_matrix."""
+        assert hasattr(solver_cls, "geometric_inductance_matrix")
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +66,7 @@ class TestInductanceMatrixProperties:
     """Physical-property tests that apply to all L-matrix implementations."""
 
     def test_is_square(self, inductance_matrix):
-        """The inductance matrix must be square (N×N)."""
+        """The inductance matrix must be square (NxN)."""
         L = np.array(inductance_matrix)
         assert L.ndim == 2
         assert L.shape[0] == L.shape[1], (
@@ -90,3 +94,48 @@ class TestInductanceMatrixProperties:
         assert np.all(eigenvalues > 0), (
             f"Matrix is not positive definite; eigenvalues = {eigenvalues}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Ideal-solenoid approximation test
+# ---------------------------------------------------------------------------
+
+# A long, thin solenoid (l/r = 50) so the ideal-solenoid formula L = N²πr²/l
+# is a good approximation.  The discrete matrix sum converges to the ideal
+# value as N increases; at N=200 the relative error from discretization is
+# ~15 %, so a 20 % tolerance is used as a sanity check.
+_SOLENOID_RADIUS = 1.0
+_SOLENOID_LENGTH = 50.0
+_SOLENOID_TURNS = 200
+_SOLENOID_IDEALITY_TOL = 0.2
+
+IDEAL_SOLENOID = LinearSecondaryConductorSpec(
+    material=Material.COPPER,
+    turn_fxn=lambda t: _SOLENOID_TURNS * t,
+    start=(_SOLENOID_RADIUS, 0.0),
+    end=(_SOLENOID_RADIUS, _SOLENOID_LENGTH),
+    wire_dia=0.01,
+)
+
+
+class TestInductanceMatrixSolenoidApproximation:
+    """Verify that the total inductance (sum of all matrix elements) approximates
+    the self-inductance of an ideal solenoid: L_geo = N² π r² / l."""
+
+    @pytest.mark.parametrize("solver_cls", INDUCTANCE_SOLVERS)
+    def test_sum_approximates_ideal_solenoid(self, solver_cls):
+        """Sum of all L-matrix elements ≈ N²πr²/l for a long solenoid."""
+        discretizer = UniformArcLengthDiscretizer()
+        solver = solver_cls(discretizer=discretizer)
+
+        L = solver.geometric_inductance_matrix(
+            secondary=IDEAL_SOLENOID,
+            discretization_order=_SOLENOID_TURNS,
+        )
+
+        L_sum = sum(sum(row) for row in L)
+        expected = _SOLENOID_TURNS ** 2 * math.pi * _SOLENOID_RADIUS ** 2 / _SOLENOID_LENGTH
+
+        assert_allclose(L_sum, expected, rtol=_SOLENOID_IDEALITY_TOL,
+                        err_msg=f"Matrix sum {L_sum:.4f} does not approximate "
+                                f"ideal solenoid value {expected:.4f}")

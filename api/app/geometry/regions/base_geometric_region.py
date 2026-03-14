@@ -17,3 +17,6 @@ class GeometricRegion(ABC):
             True if the point is inside the region, False otherwise
         """
         ...
+        
+
+

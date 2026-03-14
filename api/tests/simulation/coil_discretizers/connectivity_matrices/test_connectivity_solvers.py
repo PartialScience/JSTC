@@ -4,7 +4,7 @@ Unit tests for the connectivity matrix solver (A matrix).
 Run with: pytest tests/simulation/matrix_solvers/connectivity/test_connectivity_solvers.py -v
 """
 import pytest
-from app.simulation.matrix_solvers.connectivity import ConnectivityMatrixSolver, SeriesConnectivityMatrixSolver
+from app.simulation.coil_discretizers.connectivity_matrices import ConnectivityMatrixSolver, SeriesConnectivityMatrixSolver
 
 
 # ---------------------------------------------------------------------------

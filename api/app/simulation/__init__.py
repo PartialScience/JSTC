@@ -1,8 +1,8 @@
 from .types import EigenFamily
 from .facade import TeslaCoilSimulation
-from .matrix_solvers.capacitance import CapacitanceMatrixSolver, FEMCapacitanceMatrixSolver
-from .matrix_solvers.inductance import InductanceMatrixSolver, CoaxialRingInductanceLMatrixSolver
-from .matrix_solvers.connectivity import ConnectivityMatrixSolver, SeriesConnectivityMatrixSolver
+from .distributed_element_matrices.capacitance import CapacitanceMatrixSolver, FEMCapacitanceMatrixSolver
+from .distributed_element_matrices.inductance import InductanceMatrixSolver, CoaxialRingInductanceLMatrixSolver
+from .coil_discretizers.connectivity_matrices import ConnectivityMatrixSolver, SeriesConnectivityMatrixSolver
 from .eigen_solvers import EigenSolverBase, VoltageModeEigenSolver
 
 __all__ = [

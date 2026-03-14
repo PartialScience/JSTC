@@ -18,6 +18,8 @@ from .composite_regions import (
     HorizontalSliceRegion
 )
 
+from .offset_regions import OffsetRegion
+
 __all__ = [
     'GeometricRegion',
     'Circle',
@@ -26,4 +28,5 @@ __all__ = [
     'RegionUnion',
     'RegionIntersection',
     'HorizontalSliceRegion',
+    'OffsetRegion',
 ]

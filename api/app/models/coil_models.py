@@ -3,6 +3,7 @@ from app.models.materials import Material
 from app.geometry import GeometricRegion, LineSegment, OffsetRegion, ParametricCurve, SubCurve
 from dataclasses import dataclass, field
 from abc import abstractmethod
+from math import ceil
 
 
 @dataclass(frozen=True)
@@ -62,19 +63,29 @@ class SecondaryConductorSpec(CoilComponent):
         return self._offsetRegion
     
     @property
-    def get_curve(self) -> ParametricCurve:
+    def curve(self) -> ParametricCurve:
         """Get the central curve of the secondary conductor."""
         return self._offsetRegion.curve
     
     @property
-    def get_geometry(self) -> OffsetRegion:
+    def geometry(self) -> OffsetRegion:
         """Return the internal geometry of the secondary conductor."""
         return self._offsetRegion
     
     @property
-    def total_turns(self) -> float:
-        """Return the total number of turns in the secondary coil."""
-        return self.turn_fxn(self.get_curve.t_max)
+    def total_turns(self) -> int:
+        """
+        Return the total number of turns in the secondary coil. 
+        
+        If there are a fractional number of turns, it will be 
+        rounded up to the nearest int. This is so that the added
+        height of the turn is always counted even if the turn does
+        not fully wrap around the coil. These fractional effects
+        are almost always negligible anyway, and even adding/subtracting 
+        a few extra turns is likely to be negligible. So the height is
+        a more important consideration. 
+        """
+        return int(ceil(self.turn_fxn(self.curve.t_max)))
 
 @dataclass(frozen=True)
 class LinearSecondaryConductorSpec(SecondaryConductorSpec):
@@ -100,11 +111,18 @@ class SecondaryConductorSegment(SecondaryConductorSpec):
     full_secondary: SecondaryConductorSpec = field(repr=False)
     t1: float
     t2: float
+    flatten_start: bool = False
+    flatten_end: bool = False
     
     def __post_init__(self):
         parent = self.full_secondary
-        sub_curve = SubCurve(parent.get_curve, self.t1, self.t2)
-        offset_region = OffsetRegion(curve=sub_curve, offset=parent.get_geometry.offset)
+        sub_curve = SubCurve(parent.curve, self.t1, self.t2)
+        offset_region = OffsetRegion(
+            curve=sub_curve, 
+            offset=parent.geometry.offset,
+            flat_start=self.flatten_start,
+            flat_end=self.flatten_end,
+        )
         
         # Derive a turn function relative to t1
         parent_turn_fxn = parent.turn_fxn

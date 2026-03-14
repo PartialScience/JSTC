@@ -44,29 +44,29 @@ class TestCoaxialCircleGeometricMutualInductance:
     @pytest.mark.parametrize("r1, r2, d, expected", MUTUAL_INDUCTANCE_CASES)
     def test_mutual_inductance(self, r1, r2, d, expected):
         """Test that the computed geometric mutual inductance matches the expected value."""
-        result = coaxial_circle_geometric_mutual_inductance(r1, r2, d)
+        result = coaxial_circle_geometric_mutual_inductance(r1, r2, d, 0.001)
         assert_allclose(result, expected, rtol=1e-7)
 
     @pytest.mark.parametrize("r1, r2, d, expected", MUTUAL_INDUCTANCE_CASES)
     def test_radii_symmetry(self, r1, r2, d, expected):
         """Test that swapping r1 and r2 gives the same result."""
-        result_forward = coaxial_circle_geometric_mutual_inductance(r1, r2, d)
-        result_swapped = coaxial_circle_geometric_mutual_inductance(r2, r1, d)
+        result_forward = coaxial_circle_geometric_mutual_inductance(r1, r2, d, 0.001)
+        result_swapped = coaxial_circle_geometric_mutual_inductance(r2, r1, d, 0.001)
         assert_allclose(result_forward, result_swapped, rtol=1e-10)
 
     @pytest.mark.parametrize("r1, r2, d, expected", MUTUAL_INDUCTANCE_CASES)
     def test_distance_sign_symmetry(self, r1, r2, d, expected):
         """Test that negating d gives the same result (d appears squared in k²)."""
-        result_positive = coaxial_circle_geometric_mutual_inductance(r1, r2, d)
-        result_negative = coaxial_circle_geometric_mutual_inductance(r1, r2, -d)
+        result_positive = coaxial_circle_geometric_mutual_inductance(r1, r2, d, 0.001)
+        result_negative = coaxial_circle_geometric_mutual_inductance(r1, r2, -d, 0.001)
         assert_allclose(result_positive, result_negative, rtol=1e-10)
 
     @pytest.mark.parametrize("r1, r2, d, expected", MUTUAL_INDUCTANCE_CASES)
     def test_linear_scaling(self, r1, r2, d, expected):
         """Test that scaling all lengths by α scales the result by α (units of length)."""
         alpha = 3.7
-        result_original = coaxial_circle_geometric_mutual_inductance(r1, r2, d)
+        result_original = coaxial_circle_geometric_mutual_inductance(r1, r2, d, 0.001)
         result_scaled = coaxial_circle_geometric_mutual_inductance(
-            alpha * r1, alpha * r2, alpha * d
+            alpha * r1, alpha * r2, alpha * d, alpha * 0.001
         )
         assert_allclose(result_scaled, alpha * result_original, rtol=1e-10)

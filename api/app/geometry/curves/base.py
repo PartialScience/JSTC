@@ -34,6 +34,19 @@ class ParametricCurve(ABC):
         ...
     
     @abstractmethod
+    def derivative_at(self, t: float) -> tuple[float, ...]:
+        """
+        Get the derivative (tangent vector) of the curve at parameter t.
+        
+        Args:
+            t: The parameter value
+            
+        Returns:
+            A tuple of floats representing the components of the tangent vector
+        """
+        ...    
+    
+    @abstractmethod
     def arc_length_between(self, t1: float, t2: float) -> float:
         """
         Compute the arc length of the curve between parameters t1 and t2.
@@ -46,20 +59,7 @@ class ParametricCurve(ABC):
             The arc length of the curve between t1 and t2.
         """
         ...
-    
-    @abstractmethod
-    def derivative_at(self, t: float) -> tuple[float, ...]:
-        """
-        Get the derivative (tangent vector) of the curve at parameter t.
         
-        Args:
-            t: The parameter value
-            
-        Returns:
-            A tuple of floats representing the components of the tangent vector
-        """
-        ...
-    
     @abstractmethod
     def distance_to_curve_for_range(self, point: tuple[float, ...], t1: float, t2: float) -> float:
         """

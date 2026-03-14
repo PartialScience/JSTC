@@ -16,7 +16,7 @@ Run with: pytest tests/simulation/matrix_solvers/capacitance/test_capacitance_so
 import pytest
 import numpy as np
 from numpy.testing import assert_allclose
-from app.simulation.matrix_solvers.capacitance import CapacitanceMatrixSolver, FEMCapacitanceMatrixSolver
+from app.simulation.distributed_element_matrices.capacitance import CapacitanceMatrixSolver, FEMCapacitanceMatrixSolver
 
 
 # ---------------------------------------------------------------------------

@@ -1,12 +1,12 @@
+import functools
 from typing import Tuple
-from app.simulation.matrix_solvers.connectivity.base import ConnectivityMatrixSolver
-import methodtools as mt
+from app.simulation.coil_discretizers.connectivity_matrices.base import ConnectivityMatrixSolver
 
 
 class SeriesConnectivityMatrixSolver(ConnectivityMatrixSolver):
     """Compute a standard series connectivity matrix for a Tesla coil system."""
     
-    @mt.lru_cache()
+    @functools.lru_cache
     @staticmethod
     def compute_connectivity_matrix(
         discretization_order: int

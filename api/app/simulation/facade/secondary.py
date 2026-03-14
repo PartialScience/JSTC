@@ -33,7 +33,7 @@ class SecondaryView:
     def inductance_matrix(self) -> Tuple[Tuple[float, ...], ...]:
         """Mutual inductance matrix L."""
         coil = self._sim.coil
-        return self._sim._ind_solver.compute_inductance_matrix(
+        return self._sim._ind_solver.geometric_inductance_matrix(
             secondary=coil.secondary,
             discretization_order=coil.discretization_order,
         )
