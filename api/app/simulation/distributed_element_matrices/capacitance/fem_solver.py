@@ -1,35 +1,36 @@
+from __future__ import annotations
+
 import functools
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
+
 from app.models.coil_models import ToploadSpec, GroundedConductorSpec, SecondaryConductorSpec
 from app.simulation.distributed_element_matrices.capacitance.base import CapacitanceMatrixSolver
+
+if TYPE_CHECKING:
+    from app.models.simulation_models import SimulatableTeslaCoil
 
 
 class FEMCapacitanceMatrixSolver(CapacitanceMatrixSolver):
     """Use the Finite Element Method to compute the capacitance matrix from coil geometry."""
-    
-    def compute_capacitance_matrix(
+
+    def maxwell_capacitance_matrix(
         self,
-        secondary: SecondaryConductorSpec, 
-        toploads: Tuple[ToploadSpec, ...], 
-        grounds: Tuple[GroundedConductorSpec, ...], 
-        discretization_order: int,
-        r_max: float, 
-        z_max: float,
+        coil: SimulatableTeslaCoil,
     ) -> Tuple[Tuple[float, ...], ...]:
-        """
-        Compute the capacitance matrix using FEM.
-        
+        """Compute the capacitance matrix using FEM.
+
         Delegates to a cached static method so that identical inputs
         produce cache hits regardless of instance.
         """
-        slices = tuple(self.discretizer.get_slices(secondary, discretization_order))
+        secondary = coil.secondary
+        slices = tuple(self.discretizer.get_slices(secondary, coil.discretization_order))
         return self._compute(
             secondary=secondary,
-            toploads=toploads,
-            grounds=grounds,
+            toploads=coil.toploads,
+            grounds=coil.grounds,
             slices=slices,
-            r_max=r_max,
-            z_max=z_max,
+            r_max=coil.r_max,
+            z_max=coil.z_max,
         )
 
     @staticmethod

@@ -18,6 +18,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 from app.models.coil_models import LinearSecondaryConductorSpec
 from app.models.materials import Material
+from app.models.simulation_models import SimulatableTeslaCoil
 from app.simulation.coil_discretizers.uniform_arclength_discretizer import UniformArcLengthDiscretizer
 from app.simulation.distributed_element_matrices.inductance import InductanceMatrixSolver, CoaxialRingInductanceLMatrixSolver
 
@@ -52,8 +53,8 @@ class TestInductanceMatrixSolverABC:
 
     @pytest.mark.parametrize("solver_cls", INDUCTANCE_SOLVERS)
     def test_concrete_has_method(self, solver_cls):
-        """Every registered solver should expose geometric_inductance_matrix."""
-        assert hasattr(solver_cls, "geometric_inductance_matrix")
+        """Every registered solver should expose compute_matrix."""
+        assert hasattr(solver_cls, "compute_matrix")
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +118,13 @@ IDEAL_SOLENOID = LinearSecondaryConductorSpec(
     wire_dia=0.01,
 )
 
+IDEAL_SOLENOID_COIL = SimulatableTeslaCoil(
+    secondary=IDEAL_SOLENOID,
+    r_max=100,
+    z_max=100,
+    discretization_order=_SOLENOID_TURNS,
+)
+
 
 class TestInductanceMatrixSolenoidApproximation:
     """Verify that the total inductance (sum of all matrix elements) approximates
@@ -128,10 +136,7 @@ class TestInductanceMatrixSolenoidApproximation:
         discretizer = UniformArcLengthDiscretizer()
         solver = solver_cls(discretizer=discretizer)
 
-        L = solver.geometric_inductance_matrix(
-            secondary=IDEAL_SOLENOID,
-            discretization_order=_SOLENOID_TURNS,
-        )
+        L = solver.compute_matrix(IDEAL_SOLENOID_COIL)
 
         L_sum = sum(sum(row) for row in L)
         expected = _SOLENOID_TURNS ** 2 * math.pi * _SOLENOID_RADIUS ** 2 / _SOLENOID_LENGTH

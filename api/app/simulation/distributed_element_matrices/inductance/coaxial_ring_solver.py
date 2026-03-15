@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import functools
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
 import numba
 import numpy as np
@@ -7,6 +9,9 @@ import numpy as np
 from app.formulas.magnetic import coaxial_circle_geometric_mutual_inductance
 from app.models.coil_models import SecondaryConductorSpec
 from app.simulation.distributed_element_matrices.inductance.base import InductanceMatrixSolver
+
+if TYPE_CHECKING:
+    from app.models.simulation_models import SimulatableTeslaCoil
 
 
 # ---------------------------------------------------------------------------
@@ -64,23 +69,24 @@ class CoaxialRingInductanceLMatrixSolver(InductanceMatrixSolver):
 
     def geometric_inductance_matrix(
         self,
-        secondary: SecondaryConductorSpec,
-        discretization_order: int,
+        coil: SimulatableTeslaCoil,
     ) -> Tuple[Tuple[float, ...], ...]:
         """Compute the geometric inductance matrix at the given discretization.
 
         Parameters:
-            secondary: The specification of the secondary conductor.
-            discretization_order: The number of discrete segments to use.
+            coil: The full simulatable Tesla coil specification.
 
         Returns:
             An NxN tuple-of-tuples geometric inductance matrix
-            (N = discretization_order).  The returned matrix elements have
-            the same units as the coil geometry.  For example, if the coil
-            spec is defined in inches, the matrix elements will also be in
-            inches.  To convert to units of inductance (Henries), multiply
-            by the permeability of free space μ₀.
+            (N = coil.discretization_order).  The returned matrix elements
+            have the same units as the coil geometry.  For example, if the
+            coil spec is defined in inches, the matrix elements will also
+            be in inches.  To convert to units of inductance (Henries),
+            multiply by the permeability of free space μ₀.
         """
+        secondary = coil.secondary
+        discretization_order = coil.discretization_order
+
         slices = tuple(self.discretizer.get_slices(secondary, discretization_order))
 
         L_full = self._compute_full_turn_matrix(

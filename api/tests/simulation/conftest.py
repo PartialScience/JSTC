@@ -72,14 +72,7 @@ def capacitance_matrix(request, coil):
     solver_cls = request.param
     discretizer = UniformArcLengthDiscretizer()
     solver = solver_cls(discretizer=discretizer)
-    result = solver.compute_capacitance_matrix(
-        secondary=coil.secondary,
-        toploads=coil.toploads,
-        grounds=coil.grounds,
-        discretization_order=coil.discretization_order,
-        r_max=coil.r_max,
-        z_max=coil.z_max,
-    )
+    result = solver.compute_matrix(coil)
 
     if result is None:
         pytest.skip(f"Capacitance solver '{solver_cls.__name__}' not yet implemented")
@@ -101,10 +94,7 @@ def inductance_matrix(request, coil):
     solver_cls = request.param
     discretizer = UniformArcLengthDiscretizer()
     solver = solver_cls(discretizer=discretizer)
-    result = solver.geometric_inductance_matrix(
-        secondary=coil.secondary,
-        discretization_order=coil.discretization_order,
-    )
+    result = solver.compute_matrix(coil)
 
     if result is None:
         pytest.skip(f"Inductance solver '{solver_cls.__name__}' not yet implemented")

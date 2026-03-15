@@ -49,8 +49,8 @@ class TestCapacitanceMatrixSolverABC:
 
     @pytest.mark.parametrize("solver_cls", CAPACITANCE_SOLVERS)
     def test_concrete_has_method(self, solver_cls):
-        """Every registered solver should expose compute_capacitance_matrix."""
-        assert hasattr(solver_cls, "compute_capacitance_matrix")
+        """Every registered solver should expose compute_matrix."""
+        assert hasattr(solver_cls, "compute_matrix")
 
 
 # ---------------------------------------------------------------------------
