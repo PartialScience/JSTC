@@ -1,1 +1,1 @@
-from app.formulas.geometric import *
+from .geometric import *

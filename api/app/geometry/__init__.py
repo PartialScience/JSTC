@@ -7,19 +7,24 @@ This package provides geometric region classes and visualization utilities
 for defining and working with spatial domains in 2D space.
 """
 
-from .base_geometric_region import GeometricRegion
-from .simple_regions import (
+from .regions import (
+    GeometricRegion,
     Circle,
     Polygon,
-    Rectangle
-)
-from .composite_regions import (
+    Rectangle,
     RegionUnion,
     RegionIntersection,
-    HorizontalSliceRegion
+    HorizontalSliceRegion,
+    OffsetRegion
 )
 
 from .visualization import visualize_region
+
+from .curves import (
+    ParametricCurve,
+    LineSegment,
+    SubCurve,
+)   
 
 __all__ = [
     # Region classes
@@ -32,4 +37,9 @@ __all__ = [
     'RegionUnion',
     'RegionIntersection',
     'HorizontalSliceRegion',
+    'OffsetRegion',
+    # Curves
+    'ParametricCurve',
+    'LineSegment',
+    'SubCurve',
 ]

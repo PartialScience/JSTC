@@ -19,9 +19,10 @@ To add a new solver         → add it to the registry in the corresponding test
 """
 import pytest
 from app.models.simulation_models import SimulatableTeslaCoil
+from app.simulation.coil_discretizers.uniform_arclength_discretizer import UniformArcLengthDiscretizer
 from tests.simulation.test_coils import TEST_COILS
-from tests.simulation.matrix_solvers.capacitance.test_capacitance_solvers import CAPACITANCE_SOLVERS
-from tests.simulation.matrix_solvers.inductance.test_inductance_solvers import INDUCTANCE_SOLVERS
+from tests.simulation.distributed_element_matrices.capacitance.test_capacitance_solvers import CAPACITANCE_SOLVERS
+from tests.simulation.distributed_element_matrices.inductance.test_inductance_solvers import INDUCTANCE_SOLVERS
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +39,7 @@ def discretization_order(request):
 
 
 # ---------------------------------------------------------------------------
-# Coil fixture — one SimulatableTeslaCoil per TEST_COILS entry × disc. order
+# Coil fixture — one SimulatableTeslaCoil per TEST_COILS entry x disc. order
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(
@@ -69,14 +70,9 @@ def capacitance_matrix(request, coil):
     Skips automatically when the solver is still a placeholder (returns None).
     """
     solver_cls = request.param
-    result = solver_cls.compute_capacitance_matrix(
-        secondary=coil.secondary,
-        toploads=coil.toploads,
-        grounds=coil.grounds,
-        discretization_order=coil.discretization_order,
-        r_max=coil.r_max,
-        z_max=coil.z_max,
-    )
+    discretizer = UniformArcLengthDiscretizer()
+    solver = solver_cls(discretizer=discretizer)
+    result = solver.compute_matrix(coil)
 
     if result is None:
         pytest.skip(f"Capacitance solver '{solver_cls.__name__}' not yet implemented")
@@ -96,10 +92,9 @@ def inductance_matrix(request, coil):
     Skips automatically when the solver is still a placeholder (returns None).
     """
     solver_cls = request.param
-    result = solver_cls.compute_inductance_matrix(
-        secondary=coil.secondary,
-        discretization_order=coil.discretization_order,
-    )
+    discretizer = UniformArcLengthDiscretizer()
+    solver = solver_cls(discretizer=discretizer)
+    result = solver.compute_matrix(coil)
 
     if result is None:
         pytest.skip(f"Inductance solver '{solver_cls.__name__}' not yet implemented")

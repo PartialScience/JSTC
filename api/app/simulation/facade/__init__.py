@@ -1,4 +1,4 @@
-from app.simulation.facade.simulation import TeslaCoilSimulation
+from .simulation import TeslaCoilSimulation
 
 __all__ = [
     "TeslaCoilSimulation",

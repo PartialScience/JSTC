@@ -3,7 +3,7 @@ from app.simulation.eigen_solvers.base import EigenSolverBase
 from app.simulation.types import EigenFamily
 import numpy as np
 from scipy import linalg
-import methodtools as mt
+import functools
 
 
 class VoltageModeEigenSolver(EigenSolverBase):
@@ -18,7 +18,7 @@ class VoltageModeEigenSolver(EigenSolverBase):
 
     # -- shared cached computation ------------------------------------------
 
-    @mt.lru_cache()
+    @functools.lru_cache
     @staticmethod
     def _compute_eigen_family(
         capacitance_matrix: Tuple[Tuple[float, ...], ...],
@@ -86,7 +86,7 @@ class VoltageModeEigenSolver(EigenSolverBase):
         )
         return tuple(tuple(v) for v in family.eigenvectors)
 
-    @mt.lru_cache()
+    @functools.lru_cache
     @staticmethod
     def compute_current_eigen_modes(
         capacitance_matrix: Tuple[Tuple[float, ...], ...],

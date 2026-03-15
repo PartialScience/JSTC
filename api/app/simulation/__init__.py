@@ -1,9 +1,9 @@
-from app.simulation.types import EigenFamily
-from app.simulation.facade import TeslaCoilSimulation
-from app.simulation.matrix_solvers.capacitance import CapacitanceMatrixSolver, FEMCapacitanceMatrixSolver
-from app.simulation.matrix_solvers.inductance import InductanceMatrixSolver, IntegralInductanceLMatrixSolver
-from app.simulation.matrix_solvers.connectivity import ConnectivityMatrixSolver, SeriesConnectivityMatrixSolver
-from app.simulation.eigen_solvers import EigenSolverBase, VoltageModeEigenSolver
+from .types import EigenFamily
+from .facade import TeslaCoilSimulation
+from .distributed_element_matrices.capacitance import CapacitanceMatrixSolver, FEMCapacitanceMatrixSolver
+from .distributed_element_matrices.inductance import InductanceMatrixSolver, CoaxialRingInductanceLMatrixSolver
+from .coil_discretizers.connectivity_matrices import ConnectivityMatrixSolver, SeriesConnectivityMatrixSolver
+from .eigen_solvers import EigenSolverBase, VoltageModeEigenSolver
 
 __all__ = [
     "EigenFamily",
@@ -15,7 +15,7 @@ __all__ = [
     "EigenSolverBase",
     # Concrete solver implementations
     "FEMCapacitanceMatrixSolver",
-    "IntegralInductanceLMatrixSolver",
+    "CoaxialRingInductanceLMatrixSolver",
     "SeriesConnectivityMatrixSolver",
     "VoltageModeEigenSolver",
 ]

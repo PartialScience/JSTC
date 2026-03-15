@@ -19,24 +19,12 @@ class SecondaryView:
     @property
     def capacitance_matrix(self) -> Tuple[Tuple[float, ...], ...]:
         """Maxwell mutual capacitance matrix C."""
-        coil = self._sim.coil
-        return self._sim._cap_solver.compute_capacitance_matrix(
-            secondary=coil.secondary,
-            toploads=coil.toploads,
-            grounds=coil.grounds,
-            discretization_order=coil.discretization_order,
-            r_max=coil.r_max,
-            z_max=coil.z_max,
-        )
+        return self._sim._cap_solver.compute_matrix(self._sim.coil)
 
     @property
     def inductance_matrix(self) -> Tuple[Tuple[float, ...], ...]:
         """Mutual inductance matrix L."""
-        coil = self._sim.coil
-        return self._sim._ind_solver.compute_inductance_matrix(
-            secondary=coil.secondary,
-            discretization_order=coil.discretization_order,
-        )
+        return self._sim._ind_solver.compute_matrix(self._sim.coil)
 
     @property
     def connectivity_matrix(self) -> Tuple[Tuple[float, ...], ...]:
