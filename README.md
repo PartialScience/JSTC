@@ -1,4 +1,6 @@
-# JSTC
+# JSTC - WIP
+
+**Please note this project is currently still a work in progress**
 
 ## Getting the project running locally
 
