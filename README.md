@@ -1,10 +1,25 @@
 # JSTC
 
+
 A modern re-write of the community-standard **JavaTC** Tesla-coil analysis
 tool, pairing a FastAPI + finite-element physics backend with an interactive
 React geometry editor.
 
 ---
+
+# 0. Disclaimer - What is / isn't currently vibe coded
+
+The core foundation for the API was written mostly by hand, along with the magnetics solvers. 
+
+The FEM capacitance solvers were mostly adapted by AI based on some POC pymfem and mathematica files we wrote. 
+
+The entire front end is pretty much entirely vibe coded - I want to refine a harness, agents.md etc for others making future edits but I haven't yet and the frontend codebase is essentially and AI black box at this point. 
+
+But **can we trust the results?** 
+
+Yes. I'm very confident in the math. I've personally went through all of the math in the codebase, and not only does it use the exact math I derived for these calc, it's also been highly cross checked against JavaTC and is very consistent (agrees with everything down to a few fractions of a percentage)
+
+That being said though, this software is provided as is, and I can't make any guarantees and I take no responsibility for your use of the software even if it does give an incorrect answer somehow.
 
 ## 1. Overview
 
