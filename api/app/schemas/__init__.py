@@ -1,28 +1,85 @@
 """
 Schemas package for API request/response models.
 """
-from .geometry_schemas import CircleSchema, PolygonSchema, RectangleSchema, GeometrySchema
-from .coil_schemas import (
+from .geometry_schemas import (
+    CircleSchema,
+    RectangleSchema,
+    PolygonSchema,
+    GeometrySchema,
+)
+from .component_schemas import (
+    MaterialSchema,
+    UniformTurnProfileSchema,
+    TurnProfileSchema,
+    CircularCrossSectionSchema,
+    RectangularCrossSectionSchema,
+    CrossSectionSchema,
     BoundaryConditionTypeSchema,
     BoundaryConditionSchema,
+)
+from .coil_schemas import (
+    LinearSecondaryConductorSchema,
+    LinearPrimarySchema,
     ToploadSchema,
-    SecondaryConductorSchema,
     GroundedConductorSchema,
-    TeslaCoilSchema,
-    SimulatableTeslaCoilSchema
+    SimulatableTeslaCoilSchema,
+)
+from .matrix_schemas import MatrixBundleSchema
+from .analysis_schemas import (
+    MatricesRequest,
+    AnalyzeRequest,
+    SecondaryOutputs,
+    EigenModesOutputs,
+    PrimaryOutputs,
+    CouplingOutputs,
+    CoupledOutputs,
+    AnalysisResponse,
+    ImpedanceRequest,
+    ImpedancePoint,
+    ImpedanceResponse,
+    SpiceRequest,
+    SpiceResponse,
+    FieldRequest,
+    FieldResponse,
 )
 
 __all__ = [
-    'CircleSchema',
-    'PolygonSchema', 
-    'RectangleSchema',
-    'GeometrySchema',
-    'BoundaryConditionTypeSchema',
-    'BoundaryConditionSchema',
-    'ToploadSchema',
-    'SecondaryConductorSchema',
-    'GroundedConductorSchema',
-    'TeslaCoilSchema',
-    'SimulatableTeslaCoilSchema',
+    # Geometry
+    "CircleSchema",
+    "RectangleSchema",
+    "PolygonSchema",
+    "GeometrySchema",
+    # Components
+    "MaterialSchema",
+    "UniformTurnProfileSchema",
+    "TurnProfileSchema",
+    "CircularCrossSectionSchema",
+    "RectangularCrossSectionSchema",
+    "CrossSectionSchema",
+    "BoundaryConditionTypeSchema",
+    "BoundaryConditionSchema",
+    # Coil
+    "LinearSecondaryConductorSchema",
+    "LinearPrimarySchema",
+    "ToploadSchema",
+    "GroundedConductorSchema",
+    "SimulatableTeslaCoilSchema",
+    # Matrices
+    "MatrixBundleSchema",
+    # Analysis
+    "MatricesRequest",
+    "AnalyzeRequest",
+    "SecondaryOutputs",
+    "EigenModesOutputs",
+    "PrimaryOutputs",
+    "CouplingOutputs",
+    "CoupledOutputs",
+    "AnalysisResponse",
+    "ImpedanceRequest",
+    "ImpedancePoint",
+    "ImpedanceResponse",
+    "SpiceRequest",
+    "SpiceResponse",
+    "FieldRequest",
+    "FieldResponse",
 ]
-

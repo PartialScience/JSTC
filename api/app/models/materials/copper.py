@@ -19,3 +19,8 @@ class Copper(MaterialProperties):
         α = 0.00393  # Temperature coefficient for copper
         
         return σ0 / (1 + α * (T - T0))
+
+    @property
+    def density(self) -> float:
+        """Mass density of copper in kg/m^3."""
+        return 8960.0

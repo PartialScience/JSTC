@@ -129,11 +129,12 @@ class TestOffsetRegionContainment:
         region = OffsetRegion(curve=horizontal_line_curve, offset=2.0)
         assert region.contains((2.0, 2.0)) is True
 
-    def test_zero_offset(self, horizontal_line_curve):
-        """With zero offset only points exactly on the curve are contained."""
-        region = OffsetRegion(curve=horizontal_line_curve, offset=0.0)
-        assert region.contains((2.0, 0.0)) is True
-        assert region.contains((2.0, 0.001)) is False
+    def test_zero_offset_rejected(self, horizontal_line_curve):
+        """A zero offset is a degenerate (zero-area) region: it cannot
+        describe a physical conductor and has no boundary loop, so it is
+        rejected at construction."""
+        with pytest.raises(ValueError):
+            OffsetRegion(curve=horizontal_line_curve, offset=0.0)
 
     def test_contains_delegates_to_distance_to_curve(self):
         """contains() should call distance_to_curve and compare to offset."""

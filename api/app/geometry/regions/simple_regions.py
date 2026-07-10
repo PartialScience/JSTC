@@ -6,10 +6,14 @@ physical regions in 2D space. All regions support point containment testing
 through the `contains()` method.
 
 """
+import math
 from typing import List, Tuple
 from dataclasses import dataclass
 
 from .base_geometric_region import GeometricRegion
+from app.geometry.boundary import BoundaryLoop, BoundaryPiece
+from app.geometry.curves.circular_arc import CircularArc
+from app.geometry.curves.line_segment import LineSegment
 
 
 @dataclass(frozen=True)
@@ -30,8 +34,13 @@ class Circle(GeometricRegion):
         dx = point[0] - self.center[0]
         dy = point[1] - self.center[1]
         distance_squared = dx * dx + dy * dy
-        
+
         return distance_squared <= self.radius * self.radius
+
+    def boundary_loops(self) -> Tuple[BoundaryLoop, ...]:
+        """The circle's boundary: a single full CCW arc."""
+        arc = CircularArc(self.center, self.radius, 0.0, 2 * math.pi)
+        return (BoundaryLoop(pieces=(BoundaryPiece(curve=arc),)),)
 
 @dataclass(frozen=True)
 class Polygon(GeometricRegion):
@@ -68,8 +77,18 @@ class Polygon(GeometricRegion):
             
             if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi) + xi):
                 inside = not inside
-        
+
         return inside
+
+    def boundary_loops(self) -> Tuple[BoundaryLoop, ...]:
+        """The polygon's boundary: one loop of line segments between
+        consecutive vertices, in the order the vertices were given."""
+        n = len(self.vertices)
+        pieces = tuple(
+            BoundaryPiece(curve=LineSegment(self.vertices[i], self.vertices[(i + 1) % n]))
+            for i in range(n)
+        )
+        return (BoundaryLoop(pieces=pieces),)
 
 @dataclass(frozen=True)
 class Rectangle(Polygon):

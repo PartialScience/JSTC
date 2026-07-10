@@ -21,7 +21,10 @@ import pytest
 from app.models.simulation_models import SimulatableTeslaCoil
 from app.simulation.coil_discretizers.uniform_arclength_discretizer import UniformArcLengthDiscretizer
 from tests.simulation.test_coils import TEST_COILS
-from tests.simulation.distributed_element_matrices.capacitance.test_capacitance_solvers import CAPACITANCE_SOLVERS
+from tests.simulation.distributed_element_matrices.capacitance.test_capacitance_solvers import (
+    CAPACITANCE_SOLVERS,
+    SOLVER_TEST_KWARGS,
+)
 from tests.simulation.distributed_element_matrices.inductance.test_inductance_solvers import INDUCTANCE_SOLVERS
 
 
@@ -63,21 +66,29 @@ def coil(request, discretization_order) -> SimulatableTeslaCoil:
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(params=CAPACITANCE_SOLVERS)
-def capacitance_matrix(request, coil):
+def capacitance_solver(request):
     """
-    Compute and return a capacitance matrix from the parameterized solver.
-
-    Skips automatically when the solver is still a placeholder (returns None).
+    Instantiate the parameterized capacitance solver with its fast
+    property-test configuration (accuracy is validated separately by the
+    analytic and end-to-end tests).
     """
     solver_cls = request.param
-    discretizer = UniformArcLengthDiscretizer()
-    solver = solver_cls(discretizer=discretizer)
-    result = solver.compute_matrix(coil)
+    return solver_cls(
+        discretizer=UniformArcLengthDiscretizer(),
+        **SOLVER_TEST_KWARGS.get(solver_cls, {}),
+    )
 
-    if result is None:
-        pytest.skip(f"Capacitance solver '{solver_cls.__name__}' not yet implemented")
 
-    return result
+@pytest.fixture
+def capacitance_matrix(capacitance_solver, coil):
+    """The grounded-reduced NxN capacitance matrix for the coil fixture."""
+    return capacitance_solver.compute_matrix(coil)
+
+
+@pytest.fixture
+def nodal_capacitance_matrix(capacitance_solver, coil):
+    """The full (N+1)x(N+1) nodal capacitance matrix for the coil fixture."""
+    return capacitance_solver.nodal_capacitance_matrix(coil)
 
 
 # ---------------------------------------------------------------------------

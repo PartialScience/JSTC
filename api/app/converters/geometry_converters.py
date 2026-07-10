@@ -1,44 +1,20 @@
 """
-Converters for geometric shapes from API schemas to domain models.
+Converters from geometry schemas to domain GeometricRegion objects.
 """
-from app.schemas import CircleSchema, PolygonSchema, RectangleSchema, GeometrySchema
-from app.geometry import Circle, Polygon, Rectangle, GeometricRegion
+from app.geometry import Circle, GeometricRegion, Polygon, Rectangle
+from app.schemas.geometry_schemas import (
+    CircleSchema,
+    PolygonSchema,
+    RectangleSchema,
+)
 
 
-def geometry_from_schema(schema: GeometrySchema) -> GeometricRegion:
-    """
-    Convert a GeometrySchema to a domain GeometricRegion.
-    
-    Args:
-        schema: The API geometry schema
-        
-    Returns:
-        A GeometricRegion instance (Circle, Polygon, or Rectangle)
-        
-    Raises:
-        ValueError: If no geometry type is provided or schema is invalid
-    """
-    if schema.circle is not None:
-        return Circle(
-            center=schema.circle.center,
-            radius=schema.circle.radius
-        )
-    elif schema.polygon is not None:
-        return Polygon(vertices=schema.polygon.vertices)
-    elif schema.rectangle is not None:
-        return Rectangle(vertices=schema.rectangle.vertices)
-    else:
-        raise ValueError("No geometry type provided in schema")
-
-
-def rectangle_from_schema(schema: RectangleSchema) -> Rectangle:
-    """
-    Convert a RectangleSchema to a domain Rectangle.
-    
-    Args:
-        schema: The API rectangle schema
-        
-    Returns:
-        A Rectangle instance
-    """
-    return Rectangle(vertices=schema.vertices)
+def geometry_from_schema(schema) -> GeometricRegion:
+    """Convert a GeometrySchema member to a domain GeometricRegion."""
+    if isinstance(schema, CircleSchema):
+        return Circle(center=tuple(schema.center), radius=schema.radius)
+    if isinstance(schema, RectangleSchema):
+        return Rectangle(vertices=tuple(tuple(v) for v in schema.vertices))
+    if isinstance(schema, PolygonSchema):
+        return Polygon(vertices=tuple(tuple(v) for v in schema.vertices))
+    raise ValueError(f"Unknown geometry schema: {type(schema).__name__}")

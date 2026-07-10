@@ -9,6 +9,10 @@ import numpy as np
 from app.formulas.magnetic import coaxial_circle_geometric_mutual_inductance
 from app.models.coil_models import SecondaryConductorSpec
 from app.simulation.distributed_element_matrices.inductance.base import InductanceMatrixSolver
+from app.simulation.distributed_element_matrices.turn_sampling import (
+    secondary_turn_points,
+    segment_start_indices,
+)
 
 if TYPE_CHECKING:
     from app.models.simulation_models import SimulatableTeslaCoil
@@ -94,12 +98,11 @@ class CoaxialRingInductanceLMatrixSolver(InductanceMatrixSolver):
         )
         n = L_full.shape[0]
 
-        # Map each slice boundary to the nearest turn index, then sum
-        # rows/columns within each slice via reduceat.
-        slice_indices = sorted(set(
-            max(0, min(n - 1, round(secondary.turn_fxn(t))))
-            for t in slices
-        ))
+        # Group turn rows/columns into virtual-conductor segments. The
+        # grouping convention is shared with the coupling solver via
+        # turn_sampling (the bordered inductance matrix of the coupled
+        # primary-secondary problem requires both to agree).
+        slice_indices = segment_start_indices(secondary, slices, n)
         L = np.add.reduceat(
             np.add.reduceat(L_full, slice_indices, axis=0),
             slice_indices,
@@ -129,26 +132,9 @@ class CoaxialRingInductanceLMatrixSolver(InductanceMatrixSolver):
             geometric inductance matrix.  Multiply by μ₀ for units of
             inductance (Henries).
         """
-        curve = secondary.curve
-        num_turns = secondary.total_turns
-
-        # Build a dense sample of turn_fxn and invert it to find the t
-        # parameter for each integer turn boundary.
-        n_samples = turn_interpolation_density * num_turns
-        t_sample = np.linspace(curve.t_min, curve.t_max, n_samples)
-        turn_sample = np.array([secondary.turn_fxn(t) for t in t_sample])
-
-        target_turns = np.arange(1, num_turns, dtype=float)
-        t_interp = np.interp(target_turns, turn_sample, t_sample)
-
-        t_values = np.empty(num_turns + 1)
-        t_values[0] = curve.t_min
-        t_values[1:-1] = t_interp
-        t_values[-1] = curve.t_max
-
-        points = tuple(curve.point_at(t) for t in t_values)
-        r = np.array([p[0] for p in points], dtype=np.float64)
-        z = np.array([p[1] for p in points], dtype=np.float64)
+        points = secondary_turn_points(secondary, turn_interpolation_density)
+        r = np.ascontiguousarray(points[:, 0])
+        z = np.ascontiguousarray(points[:, 1])
 
         L = np.empty((len(r), len(r)), dtype=np.float64)
         _fill_inductance_matrix(r, z, secondary.wire_dia, L)

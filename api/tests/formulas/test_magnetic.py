@@ -70,3 +70,36 @@ class TestCoaxialCircleGeometricMutualInductance:
             alpha * r1, alpha * r2, alpha * d, alpha * 0.001
         )
         assert_allclose(result_scaled, alpha * result_original, rtol=1e-10)
+
+
+class TestRingSelfInductance:
+    """coaxial_ring_self_geometric_inductance."""
+
+    def test_uniform_current_round_wire(self):
+        """With the Maxwell disc GMD (a*e^-1/4) the formula reproduces
+        R(ln(8R/a) - 1.75)."""
+        import math
+        from app.formulas.magnetic import coaxial_ring_self_geometric_inductance
+
+        R, a = 5.0, 0.1
+        gmd = a * math.exp(-0.25)
+        expected = R * (math.log(8 * R / a) - 1.75)
+        assert coaxial_ring_self_geometric_inductance(R, gmd) == pytest.approx(expected)
+
+
+class TestStraightWireInductance:
+    """straight_wire_geometric_inductance (Rosa 1908)."""
+
+    def test_javatc_lead_value(self):
+        """JavaTC's example lead: 30 in of 0.2 in wire -> 0.861 uH."""
+        from scipy.constants import mu_0
+        from app.formulas.magnetic import straight_wire_geometric_inductance
+
+        L = straight_wire_geometric_inductance(30.0, 0.2) * mu_0 * 0.0254
+        assert L == pytest.approx(0.861e-6, rel=0.005)
+
+    def test_rejects_nonpositive(self):
+        from app.formulas.magnetic import straight_wire_geometric_inductance
+
+        with pytest.raises(ValueError):
+            straight_wire_geometric_inductance(0.0, 0.1)

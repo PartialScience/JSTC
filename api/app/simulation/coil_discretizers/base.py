@@ -2,7 +2,6 @@ from typing import Tuple
 from abc import ABC, abstractmethod
 
 from app.models.coil_models import SecondaryConductorSpec, SecondaryConductorSegment
-from app.geometry.regions.composite_regions import HorizontalSliceRegion
 from app.simulation.coil_discretizers.connectivity_matrices import ConnectivityMatrixSolver
 
 

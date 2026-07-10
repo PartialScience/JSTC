@@ -1,56 +1,41 @@
 """
-Pydantic schemas for geometric shapes in API requests/responses.
+Pydantic schemas for geometric shapes in API requests.
 
-These schemas represent the JSON structure for geometry data,
-separate from the domain geometry classes.
+These mirror the domain geometry classes (app.geometry) as a discriminated
+union keyed on ``kind`` - the shape that produces the cleanest tagged-union
+types in a generated TypeScript client.
 """
-from typing import List, Union, Literal
+from typing import List, Literal, Tuple, Union
+
 from pydantic import BaseModel, Field
+from typing_extensions import Annotated
 
 
 class CircleSchema(BaseModel):
-    """Schema for a circle geometry."""
-    center: List[float] = Field(..., description="Center point [x, y]", min_length=2, max_length=2)
-    radius: float = Field(..., description="Radius of the circle", gt=0)
-
-
-class PolygonSchema(BaseModel):
-    """Schema for a polygon geometry."""
-    vertices: List[List[float]] = Field(
-        ..., 
-        description="List of vertices, each as [x, y]",
-        min_length=3
-    )
+    """A circular (r, z) cross section - a toroid when revolved off-axis."""
+    kind: Literal["circle"] = "circle"
+    center: Tuple[float, float] = Field(..., description="Center point (r, z)")
+    radius: float = Field(..., gt=0, description="Radius")
 
 
 class RectangleSchema(BaseModel):
-    """Schema for a rectangle geometry."""
-    vertices: List[List[float]] = Field(
-        ..., 
-        description="List of 4 vertices defining the rectangle, each as [x, y]",
-        min_length=4,
-        max_length=4
+    """A rectangular region defined by exactly 4 vertices."""
+    kind: Literal["rectangle"] = "rectangle"
+    vertices: List[Tuple[float, float]] = Field(
+        ..., min_length=4, max_length=4,
+        description="Four (r, z) vertices, in boundary order",
     )
 
 
-class GeometrySchema(BaseModel):
-    """
-    Schema for any geometric shape.
-    
-    Uses a discriminated union to represent different shape types.
-    Exactly one of the shape fields must be provided.
-    """
-    circle: CircleSchema | None = Field(None, description="Circle geometry")
-    polygon: PolygonSchema | None = Field(None, description="Polygon geometry")
-    rectangle: RectangleSchema | None = Field(None, description="Rectangle geometry")
-    
-    def model_post_init(self, __context) -> None:
-        """Validate that exactly one geometry type is provided."""
-        shapes_provided = sum([
-            self.circle is not None,
-            self.polygon is not None,
-            self.rectangle is not None
-        ])
-        
-        if shapes_provided != 1:
-            raise ValueError("Exactly one geometry type must be provided")
+class PolygonSchema(BaseModel):
+    """A general polygon defined by >= 3 vertices."""
+    kind: Literal["polygon"] = "polygon"
+    vertices: List[Tuple[float, float]] = Field(
+        ..., min_length=3, description="(r, z) vertices, in boundary order",
+    )
+
+
+GeometrySchema = Annotated[
+    Union[CircleSchema, RectangleSchema, PolygonSchema],
+    Field(discriminator="kind"),
+]

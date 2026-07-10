@@ -45,3 +45,40 @@ def coaxial_circle_geometric_mutual_inductance(
     k = math.sqrt(k_sq)
     K, E = ellipke(k_sq)
     return math.sqrt(r1 * r2) * ((2.0 / k - k) * K - 2.0 / k * E)
+
+@numba.njit
+def coaxial_ring_self_geometric_inductance(radius: float, gmd: float) -> float:
+    """Geometric self-inductance of a single circular ring of conductor
+    whose cross-section has the given geometric mean distance.
+
+    L_geo = R * (ln(8R / gmd) - 2)
+
+    With the uniform-current GMD of a round wire (a * e^-1/4) this
+    reproduces the classic low-frequency formula R(ln(8R/a) - 1.75);
+    passing the physical wire radius instead gives the surface-current
+    (fully skin-limited) value. Multiply by mu_0 for Henries.
+
+    References:
+        Rosa & Grover (1912), Bulletin of the Bureau of Standards Vol. 8
+        No. 1 - self-inductance of a circular ring.
+    """
+    return radius * (math.log(8.0 * radius / gmd) - 2.0)
+
+
+def straight_wire_geometric_inductance(length: float, diameter: float) -> float:
+    """Geometric self-inductance of a straight round wire (uniform
+    current, low frequency):
+
+    L_geo = (l / 2*pi) * (ln(4l / d) - 0.75)
+
+    Multiply by mu_0 for Henries. This is the classic Rosa formula JavaTC
+    uses for connection leads (its example lead - 30 in of 0.2 in
+    conductor - evaluates to 0.861 uH, matching JavaTC's output exactly).
+
+    References:
+        Rosa, E.B. (1908). "The Self and Mutual Inductances of Linear
+        Conductors," Bulletin of the Bureau of Standards Vol. 4, No. 2.
+    """
+    if length <= 0 or diameter <= 0:
+        raise ValueError("length and diameter must be positive")
+    return (length / (2.0 * math.pi)) * (math.log(4.0 * length / diameter) - 0.75)

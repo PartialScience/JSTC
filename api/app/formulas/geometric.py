@@ -45,3 +45,29 @@ def conical_helix_arclength(r1: float, r2: float, h1: float, h2: float, n: float
             """Arc length of spiral from base to t, where t = r * dh / dr"""
             return  t * np.sqrt(1 + b**2 * (1 + a**2 * t**2))/2 + (1+b**2) * np.arcsinh(a*b*t / np.sqrt(1+b**2)) / (2*a*b)
         return abs(s(t2) - s(t1))
+
+def helical_wire_length(curve, turn_fxn, min_samples: int = 2000) -> float:
+    """Arc length of the helical wire whose centerline sweeps *curve* in
+    the (r, z) plane while circling the axis per *turn_fxn*.
+
+    Integrates sqrt(|dc|^2 + (2*pi*r*dn)^2) along the curve by dense
+    trapezoid summation - fully general in the ParametricCurve
+    abstraction, so any winding shape (cylinder, cone, flat spiral,
+    saucer) is supported. Result is in the curve's geometry units.
+
+    Parameters:
+        curve: The winding centerline (a ParametricCurve).
+        turn_fxn: Cumulative turns at parameter t.
+        min_samples: Lower bound on integration samples (raised
+            automatically to 20 per turn).
+    """
+    total_turns = float(turn_fxn(curve.t_max)) - float(turn_fxn(curve.t_min))
+    n_samples = max(min_samples, int(20 * abs(total_turns)))
+    ts = np.linspace(curve.t_min, curve.t_max, n_samples)
+    points = np.array([curve.point_at(t) for t in ts])
+    turns = np.array([turn_fxn(t) for t in ts])
+    dr_dz = np.diff(points, axis=0)
+    planar_sq = np.sum(dr_dz ** 2, axis=1)
+    mean_r = 0.5 * (points[:-1, 0] + points[1:, 0])
+    azimuthal = 2 * np.pi * mean_r * np.diff(turns)
+    return float(np.sum(np.sqrt(planar_sq + azimuthal ** 2)))
