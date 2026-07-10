@@ -18,6 +18,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 from app.models.coil_models import LinearSecondaryConductorSpec
 from app.models.materials import Material
+from app.models.turn_profiles import UniformTurnProfile
 from app.models.simulation_models import SimulatableTeslaCoil
 from app.simulation.coil_discretizers.uniform_arclength_discretizer import UniformArcLengthDiscretizer
 from app.simulation.distributed_element_matrices.inductance import InductanceMatrixSolver, CoaxialRingInductanceLMatrixSolver
@@ -66,12 +67,14 @@ class TestInductanceMatrixSolverABC:
 class TestInductanceMatrixProperties:
     """Physical-property tests that apply to all L-matrix implementations."""
 
-    def test_is_square(self, inductance_matrix):
-        """The inductance matrix must be square (NxN)."""
+    def test_is_square_N(self, inductance_matrix, coil):
+        """The inductance matrix must be NxN - one row per virtual
+        conductor segment, matching the connectivity matrix dimension."""
         L = np.array(inductance_matrix)
         assert L.ndim == 2
-        assert L.shape[0] == L.shape[1], (
-            f"Expected square matrix, got shape {L.shape}"
+        assert L.shape == (coil.discretization_order, coil.discretization_order), (
+            f"Expected {coil.discretization_order}x{coil.discretization_order}, "
+            f"got shape {L.shape}"
         )
 
     def test_is_symmetric(self, inductance_matrix):
@@ -112,7 +115,7 @@ _SOLENOID_IDEALITY_TOL = 0.2
 
 IDEAL_SOLENOID = LinearSecondaryConductorSpec(
     material=Material.COPPER,
-    turn_fxn=lambda t: _SOLENOID_TURNS * t,
+    turn_fxn=UniformTurnProfile(_SOLENOID_TURNS),
     start=(_SOLENOID_RADIUS, 0.0),
     end=(_SOLENOID_RADIUS, _SOLENOID_LENGTH),
     wire_dia=0.01,

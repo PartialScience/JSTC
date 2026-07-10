@@ -12,9 +12,6 @@ from .regions import (
     Circle,
     Polygon,
     Rectangle,
-    RegionUnion,
-    RegionIntersection,
-    HorizontalSliceRegion,
     OffsetRegion
 )
 
@@ -24,7 +21,17 @@ from .curves import (
     ParametricCurve,
     LineSegment,
     SubCurve,
-)   
+    CircularArc,
+    OffsetCurve,
+)
+
+from .boundary import BoundaryLoop, BoundaryPiece
+
+from .cross_sections import (
+    CrossSection,
+    CircularCrossSection,
+    RectangularCrossSection,
+)
 
 __all__ = [
     # Region classes
@@ -34,12 +41,18 @@ __all__ = [
     'Rectangle',
     # Visualization
     'visualize_region',
-    'RegionUnion',
-    'RegionIntersection',
-    'HorizontalSliceRegion',
     'OffsetRegion',
     # Curves
     'ParametricCurve',
     'LineSegment',
     'SubCurve',
+    'CircularArc',
+    'OffsetCurve',
+    # Boundary description
+    'BoundaryLoop',
+    'BoundaryPiece',
+    # Cross-sections
+    'CrossSection',
+    'CircularCrossSection',
+    'RectangularCrossSection',
 ]

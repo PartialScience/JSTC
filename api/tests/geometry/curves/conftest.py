@@ -15,8 +15,12 @@ in this file.
 """
 import pytest
 
+from app.geometry.curves.circular_arc import CircularArc
 from app.geometry.curves.line_segment import LineSegment
+from app.geometry.curves.offset_curve import OffsetCurve
 from tests.geometry.curves.test_line_segment import LINE_SEGMENT_INSTANCES
+from tests.geometry.curves.test_circular_arc import ARC_INSTANCES
+from tests.geometry.curves.test_offset_curve import OFFSET_CURVE_INSTANCES
 
 
 # ---------------------------------------------------------------------------
@@ -26,7 +30,9 @@ from tests.geometry.curves.test_line_segment import LINE_SEGMENT_INSTANCES
 
 CURVE_INSTANCES = [
     *LINE_SEGMENT_INSTANCES,
-    # *ARC_INSTANCES,          # ← register future curve instance lists here
+    *ARC_INSTANCES,
+    *OFFSET_CURVE_INSTANCES,
+    # ← register future curve instance lists here
 ]
 
 
@@ -37,7 +43,9 @@ CURVE_INSTANCES = [
 
 CURVE_CLASSES = [
     pytest.param(LineSegment, id="LineSegment"),
-    # pytest.param(Arc, id="Arc"),  # ← register future curve classes here
+    pytest.param(CircularArc, id="CircularArc"),
+    pytest.param(OffsetCurve, id="OffsetCurve"),
+    # ← register future curve classes here
 ]
 
 

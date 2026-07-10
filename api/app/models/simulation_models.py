@@ -9,9 +9,12 @@ class BoundaryConditionType(Enum):
     NEUMANN = "neumann"
 
 
-@dataclass
+@dataclass(frozen=True)
 class BoundaryCondition:
-    """Boundary condition specification for simulation domain walls."""
+    """Boundary condition specification for simulation domain walls.
+
+    Frozen so it can participate in the lru_cache keys of the solvers.
+    """
     bc_type: BoundaryConditionType = BoundaryConditionType.DIRICHLET
     value: float = 0.0
 
@@ -25,6 +28,15 @@ class SimulatableTeslaCoil(TeslaCoilSpec):
 
     z_max: float
     """Maximum vertical extent of the simulation domain"""
+
+    unit_scale: float = 1.0
+    """Meters per geometry unit (e.g. 0.0254 for a coil specified in inches).
+
+    All geometry (coil spec, r_max/z_max) shares one unit system; the
+    solvers return matrices in geometric units and the simulation facade
+    applies unit_scale together with the physical constants exactly once:
+    L = mu_0 * unit_scale * L_geo,  C = 2*pi*epsilon_0 * unit_scale * C_geo.
+    """
 
     discretization_order: int = 30
     """Number of virtual conductors to break the secondary coil into for matrix calculations"""

@@ -96,6 +96,13 @@ class VoltageModeEigenSolver(EigenSolverBase):
         """
         Compute current eigenmodes: I = -(j/ω) L⁻¹ Aᵀ V
 
+        The current phasor is purely imaginary relative to a real voltage
+        mode (currents run 90 degrees out of phase with voltages in a
+        lossless resonator), so the returned values are the QUADRATURE
+        AMPLITUDES: the imaginary part of -(j/ω) L⁻¹ Aᵀ V, i.e.
+        -(1/ω) L⁻¹ Aᵀ V. Taking the real part would discard the mode
+        entirely.
+
         Uses the eigenfrequencies and voltage modes from the shared family,
         then derives the current modes via the inductance matrix.
         """
@@ -117,7 +124,7 @@ class VoltageModeEigenSolver(EigenSolverBase):
         for i in range(num_modes):
             omega = 2 * np.pi * eigen_frequencies[i]
             V_mode = V[:, i]
-            I_mode = -(1j / omega) * L_inv @ A_T @ V_mode
-            I_modes.append(np.real(I_mode).tolist())
+            I_mode = -(1.0 / omega) * L_inv @ A_T @ V_mode
+            I_modes.append(I_mode.tolist())
 
         return tuple(tuple(mode) for mode in I_modes)

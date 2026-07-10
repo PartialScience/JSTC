@@ -45,26 +45,28 @@ class LineSegment(ParametricCurve):
         # The arc length between t1 and t2 is proportional to the difference in parameters
         return full_length * (t2 - t1)
     
-    def distance_to_curve_for_range(self, point: tuple[float, float], t1: float, t2: float) -> float:
-        """Provide the shortest distance from a given point to the line segment over [t1, t2]."""
+    def closest_parameter_in_range(self, point: tuple[float, float], t1: float, t2: float) -> float:
+        """Exact closest parameter on the segment over [t1, t2].
+
+        The nearest point on a line has the closed form
+        t_hat = <p - s1, s2 - s1> / ||s2 - s1||^2, clamped to [t1, t2].
+        Overrides the base class's coarse-sample-then-refine search, which
+        is far slower - and this projection is on the hot path (every
+        winding boundary DOF is projected to its parameter for the tent
+        profiles).
+        """
         s1 = self.start
         s2 = self.end
-
         dx = s2[0] - s1[0]
         dy = s2[1] - s1[1]
         seg_len_sq = dx * dx + dy * dy
-
-        # Degenerate segment (single point)
         if seg_len_sq == 0.0:
-            return ((point[0] - s1[0]) ** 2 + (point[1] - s1[1]) ** 2) ** 0.5
-
-        # Optimal t on the full line: t_hat = <p - s1, s2 - s1> / ||s2 - s1||^2
+            return t1
         t_hat = ((point[0] - s1[0]) * dx + (point[1] - s1[1]) * dy) / seg_len_sq
+        return min(max(t_hat, t1), t2)
 
-        # Project back to [t1, t2]
-        t_star = min(max(t_hat, t1), t2)
-
-        # Nearest point on the segment
+    def distance_to_curve_for_range(self, point: tuple[float, float], t1: float, t2: float) -> float:
+        """Provide the shortest distance from a given point to the line segment over [t1, t2]."""
+        t_star = self.closest_parameter_in_range(point, t1, t2)
         nearest = self.point_at(t_star)
-
         return ((point[0] - nearest[0]) ** 2 + (point[1] - nearest[1]) ** 2) ** 0.5

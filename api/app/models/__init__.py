@@ -7,6 +7,8 @@ from .coil_models import (
     ToploadSpec,
     GroundedConductorSpec,
     SecondaryConductorSpec,
+    PrimarySpec,
+    LinearPrimarySpec,
     TeslaCoilSpec,
 )
 
@@ -22,6 +24,8 @@ __all__ = [
     'ToploadSpec',
     'GroundedConductorSpec',
     'SecondaryConductorSpec',
+    'PrimarySpec',
+    'LinearPrimarySpec',
     'TeslaCoilSpec',
     # Simulation domain models
     'BoundaryConditionType',

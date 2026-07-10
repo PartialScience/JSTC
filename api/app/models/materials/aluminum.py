@@ -19,3 +19,8 @@ class Aluminum(MaterialProperties):
         α = 0.00429  # Temperature coefficient for aluminum
                 
         return σ0 / (1 + α * (T - T0))
+
+    @property
+    def density(self) -> float:
+        """Mass density of aluminum in kg/m^3."""
+        return 2700.0

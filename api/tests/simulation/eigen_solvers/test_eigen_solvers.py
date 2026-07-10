@@ -197,9 +197,15 @@ class TestEigenSolver:
 
     def test_current_mode_equation(self, eigen_system):
         """
-        Every current mode must satisfy:
+        Every current mode must be the quadrature amplitude of
 
             I = -(j/omega) L^-1 A^T V
+
+        i.e. the imaginary part -(1/omega) L^-1 A^T V. (The real part of
+        the phasor is identically zero - lossless currents run 90 degrees
+        out of phase with the voltages - so returning it would discard
+        the mode; a previous version of this test compared zeros to
+        zeros.)
         """
         solver_cls, system, result = eigen_system
         L_inv = linalg.inv(system.L)
@@ -215,7 +221,8 @@ class TestEigenSolver:
 
         for i, freq in enumerate(result.eigenvalues):
             omega = 2 * np.pi * freq
-            expected = np.real(-(1j / omega) * L_inv @ A_T @ V[:, i])
+            expected = -(1.0 / omega) * L_inv @ A_T @ V[:, i]
+            assert np.abs(expected).max() > 0, "degenerate test system"
             assert_allclose(current_modes[i], expected, rtol=1e-10,
                             err_msg=f"Current mode equation not satisfied for mode {i}")
 
