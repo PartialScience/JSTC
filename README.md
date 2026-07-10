@@ -7,7 +7,7 @@ React geometry editor.
 
 ---
 
-# 0. Disclaimer - What is / isn't currently vibe coded
+## 0. Disclaimer - What is / isn't currently vibe coded
 
 The core foundation for the API was written mostly by hand, along with the magnetics solvers. 
 
