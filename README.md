@@ -17,7 +17,7 @@ The entire front end is pretty much entirely vibe coded - I want to refine a har
 
 But **can we trust the results?** 
 
-Yes. I'm very confident in the math. I've personally went through all of the math in the codebase, and not only does it use the exact math I derived for these calc, it's also been highly cross checked against JavaTC and is very consistent (agrees with everything down to a few fractions of a percentage)
+Yes. I'm very confident in the math. I've personally went through all of the math in the codebase, and not only does it use the exact math I derived for these calcs, it's also been highly cross checked against JavaTC and is very consistent (agrees with everything down to a few fractions of a percentage)
 
 That being said though, this software is provided as is, and I can't make any guarantees and I take no responsibility for your use of the software even if it does give an incorrect answer somehow.
 
