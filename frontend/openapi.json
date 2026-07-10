@@ -1,0 +1,1688 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "JSTC API",
+    "description": "Backend for JSTC",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health",
+        "description": "Liveness probe.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulation/matrices": {
+      "post": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Compute Matrices",
+        "description": "Compute the geometric matrix bundle for a coil (runs the FEM solve).\n\nThe slow call (~seconds). Cache the returned bundle on the client and\npass it back to the fast endpoints to avoid recomputing while adjusting\nnon-geometry parameters.",
+        "operationId": "compute_matrices_simulation_matrices_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatricesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatrixBundleSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulation/analyze": {
+      "post": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Analyze",
+        "description": "Full JavaTC-style analysis plus the coupled solve (splitting).",
+        "operationId": "analyze_simulation_analyze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulation/impedance": {
+      "post": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Impedance",
+        "description": "Primary driving-point impedance sweep with the secondary installed.\n\nThe complex impedance looking into the primary tank terminals at each\nrequested frequency - the coupled-system feature that shows the split\nresonances as peaks. Requires a primary tank capacitance.",
+        "operationId": "impedance_simulation_impedance_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImpedanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpedanceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulation/spice": {
+      "post": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Spice",
+        "description": "Export the coupled system as a SPICE subcircuit.\n\nA network reproducing the coupled model's AC/transient behavior, for\ndropping the coil into a larger SPICE schematic. Requires a primary\ntank capacitance.",
+        "operationId": "spice_simulation_spice_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpiceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulation/field": {
+      "post": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Field",
+        "description": "Operating electric or magnetic field on a regular (r, z) grid.\n\nSuperposes precomputed basis fields (cached by geometry) with the phasor\ndrive at the requested frequency and primary current, so re-rendering a\nnew drive is fast. Requires a primary with a tank capacitance.",
+        "operationId": "field_simulation_field_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FieldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "root"
+        ],
+        "summary": "Read Root",
+        "description": "Root endpoint providing basic API information.",
+        "operationId": "read_root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnalysisResponse": {
+        "properties": {
+          "secondary": {
+            "$ref": "#/components/schemas/SecondaryOutputs"
+          },
+          "modes": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EigenModesOutputs"
+              }
+            ],
+            "description": "Voltage and current eigenmode shapes of the secondary"
+          },
+          "primary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrimaryOutputs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coupling": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CouplingOutputs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coupled": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoupledOutputs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bundle": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MatrixBundleSchema"
+              }
+            ],
+            "description": "The matrix bundle used (echo it back to reuse)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "secondary",
+          "modes",
+          "bundle"
+        ],
+        "title": "AnalysisResponse",
+        "description": "Full JavaTC-style analysis. primary/coupling are null for a coil\nwith no primary; coupled is null without a primary tank capacitance."
+      },
+      "AnalyzeRequest": {
+        "properties": {
+          "coil": {
+            "$ref": "#/components/schemas/SimulatableTeslaCoilSchema"
+          },
+          "bundle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatrixBundleSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "coil"
+        ],
+        "title": "AnalyzeRequest",
+        "description": "Request a full analysis, reusing a precomputed matrix bundle.\n\nThe bundle must match the coil's geometry (its geometry_fingerprint is\nvalidated); a mismatch returns 409. Omit the bundle to have the server\ncompute it inline (equivalent to calling the matrices endpoint first,\nbut without returning the bundle to the client)."
+      },
+      "BoundaryConditionSchema": {
+        "properties": {
+          "bc_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoundaryConditionTypeSchema"
+              }
+            ],
+            "description": "Dirichlet (fixed potential) or Neumann (zero normal field)",
+            "default": "dirichlet"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value",
+            "description": "Potential value (Dirichlet only)",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "BoundaryConditionSchema",
+        "description": "Boundary condition on a simulation-domain wall."
+      },
+      "BoundaryConditionTypeSchema": {
+        "type": "string",
+        "enum": [
+          "dirichlet",
+          "neumann"
+        ],
+        "title": "BoundaryConditionTypeSchema"
+      },
+      "CircleSchema": {
+        "properties": {
+          "kind": {
+            "const": "circle",
+            "title": "Kind",
+            "default": "circle"
+          },
+          "center": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Center",
+            "description": "Center point (r, z)"
+          },
+          "radius": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Radius",
+            "description": "Radius"
+          }
+        },
+        "type": "object",
+        "required": [
+          "center",
+          "radius"
+        ],
+        "title": "CircleSchema",
+        "description": "A circular (r, z) cross section - a toroid when revolved off-axis."
+      },
+      "CircularCrossSectionSchema": {
+        "properties": {
+          "kind": {
+            "const": "circular",
+            "title": "Kind",
+            "default": "circular"
+          },
+          "diameter": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Diameter"
+          }
+        },
+        "type": "object",
+        "required": [
+          "diameter"
+        ],
+        "title": "CircularCrossSectionSchema",
+        "description": "Round conductor of a given diameter."
+      },
+      "CoupledOutputs": {
+        "properties": {
+          "mode_frequencies": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Mode Frequencies",
+            "description": "Coupled resonant frequencies (Hz), ascending"
+          },
+          "split_lower": {
+            "type": "number",
+            "title": "Split Lower",
+            "description": "Lower split-pair frequency (Hz)"
+          },
+          "split_upper": {
+            "type": "number",
+            "title": "Split Upper",
+            "description": "Upper split-pair frequency (Hz)"
+          },
+          "frequency_split": {
+            "type": "number",
+            "title": "Frequency Split",
+            "description": "Upper - lower (Hz)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode_frequencies",
+          "split_lower",
+          "split_upper",
+          "frequency_split"
+        ],
+        "title": "CoupledOutputs",
+        "description": "Full coupled primary-secondary solve. Present only when the primary\nhas a tank capacitance."
+      },
+      "CouplingOutputs": {
+        "properties": {
+          "mutual_inductance": {
+            "type": "number",
+            "title": "Mutual Inductance"
+          },
+          "coupling_coefficient": {
+            "type": "number",
+            "title": "Coupling Coefficient"
+          },
+          "half_cycles_for_energy_transfer": {
+            "type": "number",
+            "title": "Half Cycles For Energy Transfer"
+          },
+          "energy_transfer_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Energy Transfer Time",
+            "description": "Null when the primary tank frequency is undefined"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mutual_inductance",
+          "coupling_coefficient",
+          "half_cycles_for_energy_transfer"
+        ],
+        "title": "CouplingOutputs"
+      },
+      "EigenModesOutputs": {
+        "properties": {
+          "frequencies": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Frequencies",
+            "description": "Eigenfrequencies (Hz), ascending; one per mode"
+          },
+          "voltage_positions": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Voltage Positions",
+            "description": "Arc length (m) along the winding for each voltage node"
+          },
+          "current_positions": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Current Positions",
+            "description": "Arc length (m) along the winding for each current segment"
+          },
+          "voltage_modes": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Voltage Modes",
+            "description": "Per-mode nodal voltage shape (len == len(voltage_positions))"
+          },
+          "current_modes": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Current Modes",
+            "description": "Per-mode segment current shape (len == len(current_positions))"
+          }
+        },
+        "type": "object",
+        "required": [
+          "frequencies",
+          "voltage_positions",
+          "current_positions",
+          "voltage_modes",
+          "current_modes"
+        ],
+        "title": "EigenModesOutputs",
+        "description": "The secondary's transmission-line eigenmodes: for every eigenfrequency,\nthe voltage mode shape (nodal voltages along the winding) and the current\nmode shape (segment currents).\n\nAmplitudes are the raw eigenvector values (arbitrary overall scale), with\nonly the physically-arbitrary eigenvector SIGN fixed to a convention\n(top-node voltage positive) so a mode does not flip between analyses.\nPositions are arc length in meters along the winding centerline, measured\nfrom the grounded base (0) to the top terminal (``winding_length``).\n\nThe voltage profile includes the grounded base node (value 0 at arc length\n0), so ``voltage_positions`` has one more entry than ``current_positions``."
+      },
+      "FieldRequest": {
+        "properties": {
+          "coil": {
+            "$ref": "#/components/schemas/SimulatableTeslaCoilSchema"
+          },
+          "bundle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatrixBundleSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "field_type": {
+            "type": "string",
+            "enum": [
+              "electric",
+              "magnetic"
+            ],
+            "title": "Field Type",
+            "description": "Which field to compute",
+            "default": "electric"
+          },
+          "frequency_hz": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Frequency Hz",
+            "description": "Sinusoidal drive frequency"
+          },
+          "primary_current": {
+            "type": "number",
+            "title": "Primary Current",
+            "description": "Primary current magnitude [A] (drive amplitude)",
+            "default": 1.0
+          },
+          "reference_mode": {
+            "type": "string",
+            "enum": [
+              "floating",
+              "grounded"
+            ],
+            "title": "Reference Mode",
+            "description": "Primary common-mode reference (E-field only)",
+            "default": "floating"
+          },
+          "hot_end": {
+            "type": "string",
+            "enum": [
+              "inner",
+              "outer"
+            ],
+            "title": "Hot End",
+            "description": "Which primary end carries V_p (E-field only)",
+            "default": "outer"
+          },
+          "grid_nr": {
+            "type": "integer",
+            "maximum": 400.0,
+            "minimum": 8.0,
+            "title": "Grid Nr",
+            "description": "Grid samples across r",
+            "default": 120
+          },
+          "grid_nz": {
+            "type": "integer",
+            "maximum": 600.0,
+            "minimum": 8.0,
+            "title": "Grid Nz",
+            "description": "Grid samples across z",
+            "default": 180
+          }
+        },
+        "type": "object",
+        "required": [
+          "coil",
+          "frequency_hz"
+        ],
+        "title": "FieldRequest",
+        "description": "Operating electric or magnetic field on a regular (r, z) grid.\n\nReuses a matrix bundle for the drive solve; the basis fields are cached\nserver-side by geometry, so changing the drive re-renders fast. Requires\na primary with a tank capacitance."
+      },
+      "FieldResponse": {
+        "properties": {
+          "field_type": {
+            "type": "string",
+            "enum": [
+              "electric",
+              "magnetic"
+            ],
+            "title": "Field Type"
+          },
+          "quantity": {
+            "type": "string",
+            "title": "Quantity",
+            "description": "'potential [V]' (E) or 'vector_potential [T*m]' (B)"
+          },
+          "nr": {
+            "type": "integer",
+            "title": "Nr"
+          },
+          "nz": {
+            "type": "integer",
+            "title": "Nz"
+          },
+          "r_min": {
+            "type": "number",
+            "title": "R Min"
+          },
+          "r_max": {
+            "type": "number",
+            "title": "R Max"
+          },
+          "z_min": {
+            "type": "number",
+            "title": "Z Min"
+          },
+          "z_max": {
+            "type": "number",
+            "title": "Z Max"
+          },
+          "unit_scale": {
+            "type": "number",
+            "title": "Unit Scale",
+            "description": "Metres per coil unit"
+          },
+          "real": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Real",
+            "description": "Re(field), nr*nz row-major"
+          },
+          "imag": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Imag",
+            "description": "Im(field), nr*nz row-major"
+          },
+          "mask": {
+            "items": {
+              "type": "boolean"
+            },
+            "type": "array",
+            "title": "Mask",
+            "description": "True where the field is defined"
+          },
+          "bundle": {
+            "$ref": "#/components/schemas/MatrixBundleSchema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field_type",
+          "quantity",
+          "nr",
+          "nz",
+          "r_min",
+          "r_max",
+          "z_min",
+          "z_max",
+          "unit_scale",
+          "real",
+          "imag",
+          "mask",
+          "bundle"
+        ],
+        "title": "FieldResponse",
+        "description": "A complex field sampled on a regular grid, row-major (z outer, r\ninner). The client reshapes ``real``/``imag`` to (nz, nr) and takes the\ngradient/curl (using unit_scale for metres) for E or B."
+      },
+      "GroundedConductorSchema": {
+        "properties": {
+          "material": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MaterialSchema"
+              }
+            ],
+            "default": "copper"
+          },
+          "shape": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CircleSchema"
+              },
+              {
+                "$ref": "#/components/schemas/RectangleSchema"
+              },
+              {
+                "$ref": "#/components/schemas/PolygonSchema"
+              }
+            ],
+            "title": "Shape",
+            "description": "(r, z) cross-section shape",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "circle": "#/components/schemas/CircleSchema",
+                "polygon": "#/components/schemas/PolygonSchema",
+                "rectangle": "#/components/schemas/RectangleSchema"
+              }
+            }
+          }
+        },
+        "type": "object",
+        "required": [
+          "shape"
+        ],
+        "title": "GroundedConductorSchema"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ImpedancePoint": {
+        "properties": {
+          "frequency_hz": {
+            "type": "number",
+            "title": "Frequency Hz"
+          },
+          "resistance": {
+            "type": "number",
+            "title": "Resistance",
+            "description": "Re(Z) [Ohm]"
+          },
+          "reactance": {
+            "type": "number",
+            "title": "Reactance",
+            "description": "Im(Z) [Ohm]"
+          },
+          "magnitude": {
+            "type": "number",
+            "title": "Magnitude",
+            "description": "|Z| [Ohm]"
+          }
+        },
+        "type": "object",
+        "required": [
+          "frequency_hz",
+          "resistance",
+          "reactance",
+          "magnitude"
+        ],
+        "title": "ImpedancePoint"
+      },
+      "ImpedanceRequest": {
+        "properties": {
+          "coil": {
+            "$ref": "#/components/schemas/SimulatableTeslaCoilSchema"
+          },
+          "bundle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatrixBundleSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frequencies_hz": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Frequencies Hz",
+            "description": "Frequencies to evaluate (Hz)"
+          },
+          "include_losses": {
+            "type": "boolean",
+            "title": "Include Losses",
+            "description": "Use AC/DC resistances so peaks are finite",
+            "default": false
+          },
+          "include_tank": {
+            "type": "boolean",
+            "title": "Include Tank",
+            "description": "Include the series tank capacitor (full LC input)",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "coil",
+          "frequencies_hz"
+        ],
+        "title": "ImpedanceRequest",
+        "description": "Primary driving-point impedance sweep with the secondary installed.\n\nReuses a matrix bundle (fast). Requires a primary tank capacitance."
+      },
+      "ImpedanceResponse": {
+        "properties": {
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/ImpedancePoint"
+            },
+            "type": "array",
+            "title": "Points"
+          },
+          "bundle": {
+            "$ref": "#/components/schemas/MatrixBundleSchema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "points",
+          "bundle"
+        ],
+        "title": "ImpedanceResponse"
+      },
+      "LinearPrimarySchema": {
+        "properties": {
+          "material": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MaterialSchema"
+              }
+            ],
+            "default": "copper"
+          },
+          "turn_fxn": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UniformTurnProfileSchema"
+              }
+            ],
+            "title": "Turn Fxn",
+            "description": "Cumulative turn profile",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "uniform": "#/components/schemas/UniformTurnProfileSchema"
+              }
+            }
+          },
+          "cross_section": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CircularCrossSectionSchema"
+              },
+              {
+                "$ref": "#/components/schemas/RectangularCrossSectionSchema"
+              }
+            ],
+            "title": "Cross Section",
+            "description": "Conductor cross-section",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "circular": "#/components/schemas/CircularCrossSectionSchema",
+                "rectangular": "#/components/schemas/RectangularCrossSectionSchema"
+              }
+            }
+          },
+          "start": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Start",
+            "description": "Winding start (r, z)"
+          },
+          "end": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "End",
+            "description": "Winding end (r, z)"
+          },
+          "tank_capacitance": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Tank Capacitance",
+            "description": "Tank capacitance (Farads)",
+            "default": 0.0
+          },
+          "lead_length": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Lead Length",
+            "description": "Connection lead length",
+            "default": 0.0
+          },
+          "lead_dia": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Lead Dia",
+            "description": "Connection lead diameter",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "turn_fxn",
+          "cross_section",
+          "start",
+          "end"
+        ],
+        "title": "LinearPrimarySchema",
+        "description": "A primary wound along a straight (r, z) centerline."
+      },
+      "LinearSecondaryConductorSchema": {
+        "properties": {
+          "material": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MaterialSchema"
+              }
+            ],
+            "default": "copper"
+          },
+          "turn_fxn": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UniformTurnProfileSchema"
+              }
+            ],
+            "title": "Turn Fxn",
+            "description": "Cumulative turn profile",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "uniform": "#/components/schemas/UniformTurnProfileSchema"
+              }
+            }
+          },
+          "start": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Start",
+            "description": "Winding start (r, z)"
+          },
+          "end": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "End",
+            "description": "Winding end (r, z)"
+          },
+          "wire_dia": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Wire Dia",
+            "description": "Wire diameter"
+          }
+        },
+        "type": "object",
+        "required": [
+          "turn_fxn",
+          "start",
+          "end",
+          "wire_dia"
+        ],
+        "title": "LinearSecondaryConductorSchema",
+        "description": "A secondary wound along a straight (r, z) centerline."
+      },
+      "MaterialSchema": {
+        "type": "string",
+        "enum": [
+          "copper",
+          "aluminum"
+        ],
+        "title": "MaterialSchema",
+        "description": "Conductor material (maps to app.models.materials.Material)."
+      },
+      "MatricesRequest": {
+        "properties": {
+          "coil": {
+            "$ref": "#/components/schemas/SimulatableTeslaCoilSchema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "coil"
+        ],
+        "title": "MatricesRequest",
+        "description": "Request the geometric matrix bundle for a coil (the slow FEM path)."
+      },
+      "MatrixBundleSchema": {
+        "properties": {
+          "nodal_capacitance": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Nodal Capacitance",
+            "description": "(N+1)x(N+1) geometric nodal capacitance matrix"
+          },
+          "topload_charge": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Topload Charge",
+            "description": "Length-(N+1) geometric topload charge per tent solve"
+          },
+          "inductance": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Inductance",
+            "description": "NxN geometric segment inductance matrix"
+          },
+          "coupling": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Coupling",
+            "description": "Length-N geometric coupling vector (empty if no primary)"
+          },
+          "discretization_order": {
+            "type": "integer",
+            "title": "Discretization Order",
+            "description": "N"
+          },
+          "geometry_fingerprint": {
+            "type": "string",
+            "title": "Geometry Fingerprint",
+            "description": "Hash of the geometry the bundle was computed for"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nodal_capacitance",
+          "topload_charge",
+          "inductance",
+          "coupling",
+          "discretization_order",
+          "geometry_fingerprint"
+        ],
+        "title": "MatrixBundleSchema",
+        "description": "Geometry-only matrices (geometric units) plus their provenance.\n\nTreat this as an opaque token on the client: obtain it from the\nmatrices endpoint, cache it, and send it back to the analyze endpoint.\nThe geometry_fingerprint guards against applying it to a coil whose\ngeometry has changed."
+      },
+      "PolygonSchema": {
+        "properties": {
+          "kind": {
+            "const": "polygon",
+            "title": "Kind",
+            "default": "polygon"
+          },
+          "vertices": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "minItems": 3,
+            "title": "Vertices",
+            "description": "(r, z) vertices, in boundary order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vertices"
+        ],
+        "title": "PolygonSchema",
+        "description": "A general polygon defined by >= 3 vertices."
+      },
+      "PrimaryOutputs": {
+        "properties": {
+          "dc_inductance": {
+            "type": "number",
+            "title": "Dc Inductance"
+          },
+          "lead_inductance": {
+            "type": "number",
+            "title": "Lead Inductance"
+          },
+          "total_inductance": {
+            "type": "number",
+            "title": "Total Inductance"
+          },
+          "resonant_frequency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resonant Frequency",
+            "description": "Null when no tank capacitance is specified"
+          },
+          "percent_detuned": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent Detuned"
+          },
+          "wire_length": {
+            "type": "number",
+            "title": "Wire Length"
+          },
+          "coil_pitch": {
+            "type": "number",
+            "title": "Coil Pitch"
+          },
+          "turn_spacing": {
+            "type": "number",
+            "title": "Turn Spacing"
+          },
+          "dc_resistance": {
+            "type": "number",
+            "title": "Dc Resistance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dc_inductance",
+          "lead_inductance",
+          "total_inductance",
+          "wire_length",
+          "coil_pitch",
+          "turn_spacing",
+          "dc_resistance"
+        ],
+        "title": "PrimaryOutputs"
+      },
+      "RectangleSchema": {
+        "properties": {
+          "kind": {
+            "const": "rectangle",
+            "title": "Kind",
+            "default": "rectangle"
+          },
+          "vertices": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Vertices",
+            "description": "Four (r, z) vertices, in boundary order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vertices"
+        ],
+        "title": "RectangleSchema",
+        "description": "A rectangular region defined by exactly 4 vertices."
+      },
+      "RectangularCrossSectionSchema": {
+        "properties": {
+          "kind": {
+            "const": "rectangular",
+            "title": "Kind",
+            "default": "rectangular"
+          },
+          "width": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "description": "Radial extent"
+          },
+          "height": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "description": "Axial extent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "width",
+          "height"
+        ],
+        "title": "RectangularCrossSectionSchema",
+        "description": "Rectangular (ribbon/strap) conductor."
+      },
+      "SecondaryOutputs": {
+        "properties": {
+          "resonant_frequency": {
+            "type": "number",
+            "title": "Resonant Frequency"
+          },
+          "eigen_frequencies": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Eigen Frequencies"
+          },
+          "dc_inductance": {
+            "type": "number",
+            "title": "Dc Inductance"
+          },
+          "effective_series_inductance": {
+            "type": "number",
+            "title": "Effective Series Inductance"
+          },
+          "energy_inductance": {
+            "type": "number",
+            "title": "Energy Inductance"
+          },
+          "dc_capacitance": {
+            "type": "number",
+            "title": "Dc Capacitance"
+          },
+          "effective_shunt_capacitance": {
+            "type": "number",
+            "title": "Effective Shunt Capacitance"
+          },
+          "energy_capacitance": {
+            "type": "number",
+            "title": "Energy Capacitance"
+          },
+          "topload_effective_capacitance": {
+            "type": "number",
+            "title": "Topload Effective Capacitance"
+          },
+          "winding_length": {
+            "type": "number",
+            "title": "Winding Length"
+          },
+          "conductor_length": {
+            "type": "number",
+            "title": "Conductor Length"
+          },
+          "coil_pitch": {
+            "type": "number",
+            "title": "Coil Pitch"
+          },
+          "turns_per_length": {
+            "type": "number",
+            "title": "Turns Per Length"
+          },
+          "turn_spacing": {
+            "type": "number",
+            "title": "Turn Spacing"
+          },
+          "mean_diameter": {
+            "type": "number",
+            "title": "Mean Diameter"
+          },
+          "aspect_ratio": {
+            "type": "number",
+            "title": "Aspect Ratio"
+          },
+          "inclination_degrees": {
+            "type": "number",
+            "title": "Inclination Degrees"
+          },
+          "reactance_at_resonance": {
+            "type": "number",
+            "title": "Reactance At Resonance"
+          },
+          "skin_depth": {
+            "type": "number",
+            "title": "Skin Depth"
+          },
+          "dc_resistance": {
+            "type": "number",
+            "title": "Dc Resistance"
+          },
+          "ac_resistance": {
+            "type": "number",
+            "title": "Ac Resistance"
+          },
+          "quality_factor": {
+            "type": "number",
+            "title": "Quality Factor"
+          },
+          "wire_weight": {
+            "type": "number",
+            "title": "Wire Weight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resonant_frequency",
+          "eigen_frequencies",
+          "dc_inductance",
+          "effective_series_inductance",
+          "energy_inductance",
+          "dc_capacitance",
+          "effective_shunt_capacitance",
+          "energy_capacitance",
+          "topload_effective_capacitance",
+          "winding_length",
+          "conductor_length",
+          "coil_pitch",
+          "turns_per_length",
+          "turn_spacing",
+          "mean_diameter",
+          "aspect_ratio",
+          "inclination_degrees",
+          "reactance_at_resonance",
+          "skin_depth",
+          "dc_resistance",
+          "ac_resistance",
+          "quality_factor",
+          "wire_weight"
+        ],
+        "title": "SecondaryOutputs"
+      },
+      "SimulatableTeslaCoilSchema": {
+        "properties": {
+          "secondary": {
+            "$ref": "#/components/schemas/LinearSecondaryConductorSchema"
+          },
+          "primary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinearPrimarySchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "toploads": {
+            "items": {
+              "$ref": "#/components/schemas/ToploadSchema"
+            },
+            "type": "array",
+            "title": "Toploads"
+          },
+          "grounds": {
+            "items": {
+              "$ref": "#/components/schemas/GroundedConductorSchema"
+            },
+            "type": "array",
+            "title": "Grounds"
+          },
+          "r_max": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "R Max",
+            "description": "Radial extent of the domain"
+          },
+          "z_max": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Z Max",
+            "description": "Vertical extent of the domain"
+          },
+          "unit_scale": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Unit Scale",
+            "description": "Meters per geometry unit (e.g. 0.0254 for inches)",
+            "default": 1.0
+          },
+          "discretization_order": {
+            "type": "integer",
+            "minimum": 2.0,
+            "title": "Discretization Order",
+            "description": "Number of virtual conductor segments",
+            "default": 30
+          },
+          "bc_bottom": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BoundaryConditionSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bc_top": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BoundaryConditionSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bc_right": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BoundaryConditionSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "secondary",
+          "r_max",
+          "z_max"
+        ],
+        "title": "SimulatableTeslaCoilSchema",
+        "description": "A complete coil plus its simulation domain and boundary conditions."
+      },
+      "SpiceRequest": {
+        "properties": {
+          "coil": {
+            "$ref": "#/components/schemas/SimulatableTeslaCoilSchema"
+          },
+          "bundle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatrixBundleSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subcircuit_name": {
+            "type": "string",
+            "title": "Subcircuit Name",
+            "description": "SPICE .subckt name",
+            "default": "teslacoil"
+          }
+        },
+        "type": "object",
+        "required": [
+          "coil"
+        ],
+        "title": "SpiceRequest",
+        "description": "Export the coupled system as a SPICE subcircuit. Reuses a bundle."
+      },
+      "SpiceResponse": {
+        "properties": {
+          "netlist": {
+            "type": "string",
+            "title": "Netlist",
+            "description": "SPICE subcircuit text"
+          },
+          "bundle": {
+            "$ref": "#/components/schemas/MatrixBundleSchema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "netlist",
+          "bundle"
+        ],
+        "title": "SpiceResponse"
+      },
+      "ToploadSchema": {
+        "properties": {
+          "material": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MaterialSchema"
+              }
+            ],
+            "default": "aluminum"
+          },
+          "shape": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CircleSchema"
+              },
+              {
+                "$ref": "#/components/schemas/RectangleSchema"
+              },
+              {
+                "$ref": "#/components/schemas/PolygonSchema"
+              }
+            ],
+            "title": "Shape",
+            "description": "(r, z) cross-section shape",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "circle": "#/components/schemas/CircleSchema",
+                "polygon": "#/components/schemas/PolygonSchema",
+                "rectangle": "#/components/schemas/RectangleSchema"
+              }
+            }
+          }
+        },
+        "type": "object",
+        "required": [
+          "shape"
+        ],
+        "title": "ToploadSchema"
+      },
+      "UniformTurnProfileSchema": {
+        "properties": {
+          "kind": {
+            "const": "uniform",
+            "title": "Kind",
+            "default": "uniform"
+          },
+          "total_turns": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Total Turns",
+            "description": "Total number of turns"
+          },
+          "t_min": {
+            "type": "number",
+            "title": "T Min",
+            "description": "Curve parameter at the start",
+            "default": 0.0
+          },
+          "t_max": {
+            "type": "number",
+            "title": "T Max",
+            "description": "Curve parameter at the end",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_turns"
+        ],
+        "title": "UniformTurnProfileSchema",
+        "description": "Evenly wound: turns ramp linearly in the curve parameter."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
