@@ -5,6 +5,9 @@ A modern re-write of the community-standard **JavaTC** Tesla-coil analysis
 tool, pairing a FastAPI + finite-element physics backend with an interactive
 React geometry editor.
 
+If you just want to use the app, you can check out the deployed version on my website:
+https://jstc.partialscience.com
+
 ---
 
 ## 0. Disclaimer - What is / isn't currently vibe coded
