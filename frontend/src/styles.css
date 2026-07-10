@@ -1,0 +1,1009 @@
+/*
+ * Colors are NOT defined here. The active theme's palette is injected as CSS
+ * custom properties on :root by the ThemeProvider (see src/theme/), so this
+ * file only ever references var(--token). To change or add a color, edit
+ * src/theme/palette.ts — never hardcode one here.
+ */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+/* Never let a stray-wide child (a chart's sub-pixel rounding, the canvas, a
+ * tight toolbar) produce a page-wide horizontal scrollbar. `clip` rather than
+ * `hidden` so it doesn't turn the root into a scroll container or interfere
+ * with vertical page scrolling; the app is a single vertical scroller. */
+html {
+  overflow-x: clip;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  /* Height of the top bar, subtracted from the editor so the top bar + editor
+   * together fill the first viewport and the results still scroll in below. */
+  --topbar-h: 46px;
+}
+
+/* Editor fills the first viewport below the top bar, but stops short by the
+ * height of the results header so that whole header (the "Results" title,
+ * status badge and Run button) peeks below the fold, down to the top of the
+ * result cards — a clear cue that there's more to scroll to, without clipping
+ * the header itself. `dvh` tracks the *dynamic* viewport so a mobile browser's
+ * collapsing address bar doesn't leave the canvas mis-sized (vh is the static
+ * fallback). The stacked mobile layout overrides this height to `auto` below. */
+.editor-pane {
+  --results-peek: 4.75rem;
+  height: calc(100vh - var(--topbar-h) - var(--results-peek));
+  height: calc(100dvh - var(--topbar-h) - var(--results-peek));
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Top bar: whole-session actions (demo / new / import / export). Fixed height
+ * so the editor's viewport calc stays exact; the transient import notice is
+ * overlaid (absolute) rather than growing the bar. */
+.topbar {
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 40;
+}
+
+.topbar-brand {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.topbar-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.topbar-btn {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.topbar-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.topbar-notice {
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 0;
+  right: 0;
+  z-index: 41;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  font-size: 12px;
+  background: var(--panel-alt);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.topbar-notice.error {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-bottom-color: var(--danger);
+  color: var(--danger-text);
+}
+.topbar-notice-dismiss {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 4px;
+  opacity: 0.7;
+}
+.topbar-notice-dismiss:hover {
+  opacity: 1;
+}
+
+.canvas-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.canvas-host {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+/* Fallback shown while the lazy-loaded 3-D view chunk is fetched. */
+.canvas-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 12px;
+}
+
+.sidebar-title {
+  margin: 4px 0 12px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.sidebar-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  background: var(--panel-alt);
+}
+
+.sidebar-section.active {
+  border-color: var(--accent);
+}
+
+.sidebar-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+
+.sidebar-section-body {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.field span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.field-row {
+  display: flex;
+  gap: 8px;
+}
+
+.field-note,
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+input,
+select {
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 5px;
+  padding: 5px 7px;
+  font-size: 12px;
+  width: 100%;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+}
+.link-btn:hover:not(:disabled) {
+  color: var(--danger);
+}
+.link-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.impedance-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.impedance-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.impedance-controls input {
+  width: 90px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 7px;
+  font-size: 13px;
+}
+.impedance-controls .link-btn {
+  padding-bottom: 6px;
+  color: var(--accent);
+}
+
+.vertex-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vertex-row {
+  align-items: flex-end;
+}
+.vertex-row .link-btn {
+  padding-bottom: 6px;
+}
+.add-vertex {
+  color: var(--accent);
+  align-self: flex-start;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  justify-content: space-between;
+  /* Wrap to a second line rather than overflow when the row gets tight (e.g.
+   * a snug desktop width just above the stacked breakpoint), so no button is
+   * pushed past the edge. The mobile rule below already relies on wrapping. */
+  flex-wrap: wrap;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.toolbar-btn.run {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--success-text);
+  font-weight: 600;
+}
+.toolbar-btn.run:hover:not(:disabled) {
+  background: var(--success-hover);
+}
+.toolbar-btn.run.dirty {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+.run-inline {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+}
+.run-inline:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.run-inline.dirty {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.toolbar-btn {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.toolbar-btn.active {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Placement dropdown (topload / ground: click the button to pick a geometry) */
+.placement-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 51;
+  min-width: 150px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--bg) 55%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dropdown-item:not(:disabled):hover {
+  background: var(--panel-alt);
+}
+
+/* A disabled entry (e.g. a singleton that already exists in the "+ Add" menu)
+ * reads as grayed and non-interactive rather than looking tappable. */
+.dropdown-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dropdown-item .check {
+  width: 12px;
+  color: var(--accent);
+}
+
+/* Context menu */
+.context-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 51;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  min-width: 170px;
+  /* Never spill off a small screen (e.g. a long-press near an edge): cap the
+   * size and let the menu scroll if the choices don't fit. The component also
+   * clamps its top-left corner into the viewport. */
+  max-width: min(240px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--bg) 55%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.context-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 4px 8px;
+}
+
+.context-menu button {
+  background: none;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.context-menu button:hover {
+  background: var(--panel-alt);
+}
+
+.context-point-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px;
+}
+.context-point-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Results */
+.results {
+  padding: 24px;
+  min-height: 60vh;
+  background: var(--bg);
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.results-header h2 {
+  margin: 0;
+}
+
+.badge {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.result-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.result-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.result-card h3 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.stat-value {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.error-banner {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid var(--danger);
+  color: var(--danger-text);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+button[data-testid='spice-export'] {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* --- Eigenmode pane -------------------------------------------------------- */
+.eigen-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.eigen-normalize {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  /* Keep the label on one line: don't let it shrink, and don't wrap the text. */
+  flex: none;
+  white-space: nowrap;
+}
+/* The global `input { width: 100% }` rule stretches the checkbox and pushes
+ * the label text onto a second line; size it to its natural box instead. */
+.eigen-normalize input[type='checkbox'] {
+  width: auto;
+  flex: none;
+  margin: 0;
+}
+.eigen-spacer {
+  flex: 1;
+}
+.eigen-controls .link-btn {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.eigen-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.eigen-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 9px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.1s;
+}
+.eigen-chip:hover {
+  opacity: 0.85;
+}
+.eigen-chip.on {
+  opacity: 1;
+  border-width: 1.5px;
+}
+.eigen-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.eigen-body {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+}
+.eigen-plots {
+  flex: 1;
+  min-width: 0;
+}
+/* Panel heights. Mobile-first base keeps the compact look that reads well on
+ * a phone; desktop (below) grows each panel with the viewport. The second
+ * panel (current) is a touch taller since it carries the shared x-axis. */
+.eigen-panel {
+  width: 100%;
+  height: 190px;
+}
+.eigen-panel + .eigen-panel {
+  height: 200px;
+}
+/* Desktop: let the pair fill ~80vh of a roomy landscape display, but clamp so
+ * it never gets cramped on a short laptop nor absurdly tall on a 4K monitor. */
+@media (min-width: 901px) and (min-aspect-ratio: 4 / 5) {
+  .eigen-panel {
+    height: clamp(200px, 39vh, 450px);
+  }
+  .eigen-panel + .eigen-panel {
+    height: clamp(210px, 41vh, 470px);
+  }
+}
+.eigen-legend {
+  width: 150px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+.eigen-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.eigen-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: none;
+}
+.eigen-legend-label {
+  color: var(--text);
+}
+.eigen-legend-freq {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+
+/* Compact CSV export, tucked into the top-right corner of the controls row. */
+.eigen-csv-btn {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* --- Matrix pane ----------------------------------------------------------- */
+.matrix-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.matrix-nav {
+  background: var(--panel-alt);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  flex: none;
+}
+.matrix-nav:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.matrix-nav:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.matrix-heading {
+  min-width: 0;
+}
+.matrix-title {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 600;
+}
+.matrix-count {
+  color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.matrix-caption {
+  font-size: 11px;
+  color: var(--muted);
+}
+.matrix-spacer {
+  flex: 1;
+}
+.matrix-csv-btn {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 11px;
+  white-space: nowrap;
+  flex: none;
+}
+
+/* The grid scrolls inside its own box so a large matrix never widens the page.
+ * Row/column index headers stay pinned while scrolling. */
+.matrix-grid-wrap {
+  overflow: auto;
+  max-height: 460px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.matrix-grid {
+  border-collapse: collapse;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.matrix-grid th,
+.matrix-grid td {
+  padding: 2px 5px;
+  text-align: right;
+  white-space: nowrap;
+}
+.matrix-grid thead th,
+.matrix-grid tbody th {
+  background: var(--panel-alt);
+  color: var(--muted);
+  font-weight: 600;
+  position: sticky;
+}
+.matrix-grid thead th {
+  top: 0;
+  z-index: 1;
+}
+.matrix-grid tbody th {
+  left: 0;
+}
+.matrix-grid thead th.matrix-corner {
+  left: 0;
+  z-index: 2;
+}
+.matrix-grid td {
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * Responsive layout. When the viewport gets too thin — a narrow window or a
+ * phone in portrait — the side-by-side editor is unusable (a 300px sidebar
+ * would crowd the canvas out). Stack instead: the graphical editor on top,
+ * the parameter sidebar below it, and let the page scroll as one column.
+ *
+ * The trigger is deliberately generous so resizing a desktop window narrows
+ * into the stacked layout well before the canvas gets cramped: below 900px
+ * wide (the 300px sidebar + a usable canvas need more than that), or any
+ * clearly portrait window (height noticeably exceeding width).
+ * ------------------------------------------------------------------------- */
+@media (max-width: 900px), (max-aspect-ratio: 4 / 5) {
+  .editor-pane {
+    flex-direction: column;
+    /* Let the stacked column grow to its content and scroll with the page,
+     * rather than trapping the sidebar inside a fixed-height row. */
+    height: auto;
+  }
+
+  /* On a narrow screen the action buttons may need a second line; let the bar
+   * grow rather than clip (the editor below is auto-height here, so a taller
+   * bar doesn't throw off any viewport calc). */
+  .topbar {
+    height: auto;
+    flex-wrap: wrap;
+  }
+
+  /* Canvas + toolbar ride above the sidebar (DOM order is sidebar-first). */
+  .canvas-column {
+    order: -1;
+    flex: none;
+    height: 60vh;
+    height: 60dvh;
+    min-height: 300px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar {
+    width: 100%;
+    max-height: none;
+    overflow-y: visible;
+    border-right: none;
+  }
+
+  /* The full tool row won't fit one phone-width line; wrap it rather than
+   * clip it, and let the two groups sit left-aligned. Each group is itself a
+   * flex row, so it must wrap too — otherwise a group wider than the viewport
+   * (e.g. all the placement buttons) overflows to the right and leaves a
+   * horizontal scroll / dead strip beside the app. */
+  .toolbar {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .toolbar-group {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .results {
+    padding: 16px;
+  }
+
+  .result-cards {
+    grid-template-columns: 1fr;
+  }
+
+  /* Title + status badge + Run button won't fit one narrow line; let the
+   * Run button wrap under rather than push past the right edge. */
+  .results-header {
+    flex-wrap: wrap;
+  }
+
+  /* The plot + side legend won't both fit a narrow column: drop the legend
+   * beneath the plots and let its entries wrap across the width. */
+  .eigen-body {
+    flex-direction: column;
+  }
+  .eigen-legend {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+}
+
+/* Touch / coarse-pointer refinements: finger-sized tap targets, and 16px
+ * inputs so iOS Safari doesn't zoom the page when a field is focused. These
+ * key off the input device, not the screen size, so a touch laptop benefits
+ * too. */
+@media (pointer: coarse) {
+  .toolbar-btn,
+  .topbar-btn,
+  .run-inline,
+  button[data-testid='spice-export'] {
+    padding: 9px 14px;
+  }
+
+  .eigen-csv-btn {
+    padding: 7px 12px;
+  }
+
+  input,
+  select {
+    font-size: 16px;
+  }
+
+  .sidebar-section-header {
+    padding: 12px;
+  }
+
+  .context-menu button,
+  .dropdown-item {
+    padding: 10px;
+  }
+
+  .link-btn {
+    padding: 4px 2px;
+  }
+}
+
+/* Field view: segmented mode toggle */
+.toolbar-group.segmented {
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.seg-btn {
+  background: var(--panel-alt);
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.seg-btn:last-child {
+  border-right: none;
+}
+.seg-btn.active {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.seg-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Field drive panel */
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.preset-row .link-btn {
+  color: var(--accent);
+}
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.checkbox-row input {
+  width: auto;
+}
