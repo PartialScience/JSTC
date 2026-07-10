@@ -13,7 +13,7 @@ The core foundation for the API was written mostly by hand, along with the magne
 
 The FEM capacitance solvers were mostly adapted by AI based on some POC pymfem and mathematica files we wrote. 
 
-The entire front end is pretty much entirely vibe coded - I want to refine a harness, agents.md etc for others making future edits but I haven't yet and the frontend codebase is essentially and AI black box at this point. 
+The entire front end is pretty much entirely vibe coded - I want to refine a harness, agents.md etc for others making future edits but I haven't yet and the frontend codebase is essentially an AI black box at this point. 
 
 But **can we trust the results?** 
 
