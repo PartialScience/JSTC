@@ -1,0 +1,16 @@
+{
+  "name": "jstc",
+  "private": true,
+  "description": "JSTC — full dev stack orchestration (FastAPI backend + React frontend)",
+  "scripts": {
+    "predev": "node scripts/free-ports.mjs 5173 8420",
+    "dev": "concurrently -k -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "cd api && JSTC_UVICORN_RELOAD=false python main.py",
+    "dev:web": "cd frontend && npm run dev",
+    "setup": "cd frontend && npm install",
+    "gen:api": "cd api && python -c \"import sys,json; sys.path.insert(0,'.'); import main; json.dump(main.app.openapi(), open('../frontend/openapi.json','w'), indent=2)\" && cd frontend && npm run gen:api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

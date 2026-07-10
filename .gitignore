@@ -147,3 +147,5 @@ logs/
 # IDE
 .vscode/settings.json
 .idea/
+# Root dev-stack orchestration deps
+/node_modules

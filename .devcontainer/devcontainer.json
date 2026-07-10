@@ -27,14 +27,31 @@
         		"python.defaultInterpreterPath": "/usr/local/bin/python"
       		}
     	}
-	}
+	},
 
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
+	"features": {
+		// Creates a non-root 'vscode' user (with passwordless sudo). Claude Code's
+		// auto/bypass permission modes refuse to run as root, so the container
+		// needs a real user to run VS Code and Claude Code as.
+		"ghcr.io/devcontainers/features/common-utils:2": {
+			"username": "vscode"
+		},
+		"ghcr.io/devcontainers/features/node:1": {},
+		"ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
+	},
+	"remoteUser": "vscode",
+	"mounts": [
+    	"source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/home/vscode/.claude,type=bind"
+  	],
 
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
+	// Frontend dev server (Vite) and backend API (FastAPI/uvicorn).
+	"forwardPorts": [5173, 8420],
+	"portsAttributes": {
+		"5173": { "label": "frontend (vite)", "onAutoForward": "notify" },
+		"8420": { "label": "backend (api)", "onAutoForward": "silent" }
+	},
 
 	// Uncomment the next line if you want start specific services in your Docker Compose config.
 	// "runServices": [],

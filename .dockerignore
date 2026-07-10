@@ -1,0 +1,30 @@
+# Keep the Docker build context small and the image clean.
+.git
+.gitignore
+
+# Frontend is deployed separately (Vercel) - never needed in the API image.
+frontend
+
+# Node / root tooling
+node_modules
+scripts
+
+# Docs and local artifacts
+docs
+*.md
+ex1.py
+ex1_solution.png
+*.msh
+gmsh
+
+# Python caches / test artifacts
+**/__pycache__
+**/*.pyc
+.pytest_cache
+api/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+
+# Dev container
+.devcontainer
+.vscode
