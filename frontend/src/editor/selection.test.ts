@@ -1,11 +1,30 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaultCoil } from '../domain/coil';
+import { newPrimary, newSecondary, newTopload, type Coil } from '../domain/coil';
 import { refsInRect } from './selection';
 
+// A fixture coil with round, unit-agnostic coordinates (the classic example
+// coil's inch dimensions). The selection logic is scale-invariant, so this
+// keeps the test numbers readable and independent of the production defaults.
+function fixtureCoil(): Coil {
+  return {
+    secondary: newSecondary([2.27, 23], [2.27, 44.8]),
+    primary: newPrimary([3.75, 23], [7.97, 23]),
+    toploads: [newTopload([7.375, 48.8], 3.125)],
+    grounds: [],
+    r_max: 100,
+    z_max: 150,
+    unit_scale: 1,
+    discretization_order: 30,
+    bc_bottom: null,
+    bc_top: null,
+    bc_right: null,
+  };
+}
+
 describe('refsInRect', () => {
-  const coil = defaultCoil();
-  // Default coil: secondary at r≈2.27 (z 23→44.8), primary at r 3.75→7.97 (z 23),
+  const coil = fixtureCoil();
+  // Secondary at r≈2.27 (z 23→44.8), primary at r 3.75→7.97 (z 23),
   // one topload centered at (7.375, 48.8) r=3.125.
 
   it('selects the thin secondary from a box that only grazes its centerline', () => {

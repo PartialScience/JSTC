@@ -9,12 +9,16 @@
 import { useMemo, useState } from 'react';
 
 import type { MatrixBundle } from '../api/client';
+import { useEditorStore } from '../state/store';
 import {
   cellColor,
   colorScale,
-  formatCell,
+  formatMatrixCell,
+  GEOMETRIC,
   matricesFromBundle,
+  matrixCsvName,
   matrixToCsv,
+  matrixUnitChoices,
   textColorFor,
   type NamedMatrix,
 } from './matrixData';
@@ -29,7 +33,9 @@ function download(filename: string, text: string, mime: string): void {
   URL.revokeObjectURL(url);
 }
 
-function MatrixGrid({ matrix }: { matrix: NamedMatrix }) {
+function MatrixGrid({ matrix, unit }: { matrix: NamedMatrix; unit: string }) {
+  // Colour reflects relative structure, which a positive scalar unit conversion
+  // preserves — so scale on the raw geometric rows regardless of display unit.
   const scale = useMemo(() => colorScale(matrix.rows), [matrix.rows]);
 
   return (
@@ -55,7 +61,7 @@ function MatrixGrid({ matrix }: { matrix: NamedMatrix }) {
                     style={{ background: bg ?? undefined, color: textColorFor(bg) }}
                     title={Number.isFinite(v) ? String(v) : undefined}
                   >
-                    {formatCell(v)}
+                    {formatMatrixCell(v, matrix, unit)}
                   </td>
                 );
               })}
@@ -70,6 +76,8 @@ function MatrixGrid({ matrix }: { matrix: NamedMatrix }) {
 export function MatrixViewer({ bundle }: { bundle: MatrixBundle }) {
   const matrices = useMemo(() => matricesFromBundle(bundle), [bundle]);
   const [index, setIndex] = useState(0);
+  const matrixUnits = useEditorStore((s) => s.unitPrefs.matrices);
+  const setMatrixUnit = useEditorStore((s) => s.setMatrixUnit);
 
   if (matrices.length === 0) {
     return <p className="muted">No matrices available.</p>;
@@ -79,6 +87,7 @@ export function MatrixViewer({ bundle }: { bundle: MatrixBundle }) {
   // primary drops the coupling matrix).
   const active = Math.min(index, matrices.length - 1);
   const matrix = matrices[active]!;
+  const unit = matrixUnits[matrix.key] ?? GEOMETRIC;
 
   const step = (delta: number) =>
     setIndex((i) => {
@@ -86,7 +95,8 @@ export function MatrixViewer({ bundle }: { bundle: MatrixBundle }) {
       return (Math.min(i, n - 1) + delta + n) % n;
     });
 
-  const exportCsv = () => download(`${matrix.key}.csv`, matrixToCsv(matrix), 'text/csv');
+  const exportCsv = () =>
+    download(matrixCsvName(matrix, unit), matrixToCsv(matrix, unit), 'text/csv');
 
   return (
     <div data-testid="matrix-viewer">
@@ -124,6 +134,21 @@ export function MatrixViewer({ bundle }: { bundle: MatrixBundle }) {
           ›
         </button>
         <div className="matrix-spacer" />
+        <label className="matrix-unit">
+          <span className="visually-hidden">Units</span>
+          <select
+            data-testid="matrix-unit"
+            value={unit}
+            onChange={(e) => setMatrixUnit(matrix.key, e.target.value)}
+            title="Display units for this matrix"
+          >
+            {matrixUnitChoices(matrix).map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           className="matrix-csv-btn"
@@ -135,7 +160,7 @@ export function MatrixViewer({ bundle }: { bundle: MatrixBundle }) {
         </button>
       </div>
 
-      <MatrixGrid matrix={matrix} />
+      <MatrixGrid matrix={matrix} unit={unit} />
     </div>
   );
 }

@@ -16,7 +16,8 @@ test.beforeEach(async ({ page }) => {
 async function atWorld(page: Page, r: number, z: number) {
   const box = (await page.getByTestId('coil-canvas').boundingBox())!;
   const s = await page.evaluate(
-    ([x, y]) => window.__editor!.worldToScreen(x, y),
+    // Specs author coords in the inch display unit; the coil's world is metres.
+    ([x, y]) => window.__editor!.worldToScreen(x * 0.0254, y * 0.0254),
     [r, z] as [number, number],
   );
   return { x: box.x + s.x, y: box.y + s.y };

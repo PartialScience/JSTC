@@ -22,7 +22,8 @@ test.beforeEach(async ({ page }) => {
 async function pagePoint(page: Page, r: number, z: number) {
   const box = (await page.getByTestId('coil-canvas').boundingBox())!;
   const s = await page.evaluate(
-    ([x, y]) => window.__editor!.worldToScreen(x, y),
+    // Specs author coords in the inch display unit; the coil's world is metres.
+    ([x, y]) => window.__editor!.worldToScreen(x * 0.0254, y * 0.0254),
     [r, z] as [number, number],
   );
   return { x: box.x + s.x, y: box.y + s.y };
@@ -94,7 +95,9 @@ test('tap empty clears the selection (touch)', async ({ page }) => {
   await page.getByTestId('coil-canvas').waitFor();
   const box = (await page.getByTestId('coil-canvas').boundingBox())!;
 
-  // The secondary is selected by default.
+  // Select a component first (nothing is selected by default).
+  const tl = await pagePoint(page, 7.375, 48.8); // the topload body
+  await page.touchscreen.tap(tl.x, tl.y);
   await expect(activeSections(page)).toHaveCount(1);
 
   // A tap on clearly-empty canvas clears the selection.

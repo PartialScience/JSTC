@@ -4,8 +4,10 @@ import type { MatrixBundle } from '../api/client';
 import {
   cellColor,
   colorScale,
+  convertCell,
   formatCell,
   matricesFromBundle,
+  matrixCsvName,
   matrixToCsv,
   textColorFor,
   type NamedMatrix,
@@ -106,6 +108,7 @@ describe('matrixToCsv', () => {
         [1, 2],
         [3, 4],
       ],
+      physical: { kind: 'capacitance', factor: 1 },
     };
     expect(matrixToCsv(m)).toBe(',0,1\n0,1,2\n1,3,4');
   });
@@ -117,7 +120,28 @@ describe('matrixToCsv', () => {
       caption: '',
       columns: null,
       rows: [[0.4], [0.5]],
+      physical: { kind: 'inductance', factor: 1 },
     };
     expect(matrixToCsv(m)).toBe('0,0.4\n1,0.5');
+  });
+});
+
+describe('matrix unit conversion', () => {
+  const cap = matricesFromBundle(
+    { nodal_capacitance: [[1]], topload_charge: [], inductance: [], coupling: [] } as never,
+  ).find((x) => x.key === 'capacitance')!;
+
+  it('leaves geometric values raw', () => {
+    expect(convertCell(1, cap, 'geometric')).toBe(1);
+  });
+
+  it('converts a geometric entry to a physical unit (pF)', () => {
+    // 1 geometric × 2π·ε₀ ≈ 5.563e-11 F ≈ 55.6 pF
+    expect(convertCell(1, cap, 'pF')).toBeCloseTo(55.63, 2);
+  });
+
+  it('encodes the unit in the CSV filename', () => {
+    expect(matrixCsvName(cap, 'pF')).toBe('capacitance_pF.csv');
+    expect(matrixCsvName(cap, 'geometric')).toBe('capacitance_geometric.csv');
   });
 });

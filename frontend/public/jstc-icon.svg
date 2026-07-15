@@ -1,0 +1,23 @@
+<svg version="1.1" viewBox="81.8 52 408.0 408.0" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <mask id="secondary-notch" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect x="0" y="0" width="512" height="512" fill="#ffffff"/>
+      <path d="M 230 138 L 284 138 L 284 430 L 230 430" fill="none" stroke="#000000" stroke-width="66" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M 397.8 125.7 L 453.3 194.0 L 432.2 201.7 L 470.5 269.5 L 402.3 199.0 L 423.3 191.3 L 387.2 129.5 Z" fill="#000000" stroke="#000000" stroke-width="34" stroke-linejoin="round" stroke-linecap="round"/>
+    </mask>
+  </defs>
+
+  <!-- primary: capsule, notched where the secondary meets it -->
+  <rect mask="url(#secondary-notch)" x="97" y="62" width="318" height="106" rx="53" fill="currentColor"/>
+
+  <!-- secondary: bracket "]" -->
+  <path d="M 230 138 L 284 138 L 284 430 L 230 430" fill="none" stroke="currentColor" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- matrix entries -->
+  <circle cx="230" cy="216" r="22" fill="currentColor"/>
+  <circle cx="230" cy="289" r="22" fill="currentColor"/>
+  <circle cx="230" cy="362" r="22" fill="currentColor"/>
+
+  <!-- discharge -->
+  <path d="M 397.8 125.7 L 453.3 194.0 L 432.2 201.7 L 470.5 269.5 L 402.3 199.0 L 423.3 191.3 L 387.2 129.5 Z" fill="currentColor" stroke="currentColor" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
