@@ -29,6 +29,12 @@ import {
 } from '../domain/coil';
 import { translateComponents } from '../editor/move';
 import { convertShape, translateShape, type ShapeKind } from '../editor/shapeOps';
+import {
+  defaultUnitPrefs,
+  type OutputUnitPref,
+  type UnitPrefs,
+  type UnitSystem,
+} from '../units/units';
 
 export type HandleKind = 'start' | 'end' | 'center' | 'radius' | 'vertex' | 'wire';
 
@@ -158,8 +164,20 @@ export interface EditorState {
 
   // Whole-coil scalar fields
   setDomain: (patch: Partial<Pick<Coil, 'r_max' | 'z_max'>>) => void;
-  setUnitScale: (unitScale: number) => void;
   setDiscretizationOrder: (order: number) => void;
+
+  // --- Display unit preferences (cosmetic; not undoable; round-tripped) ---
+  /** Per-field input units, per-kind output units, and per-matrix units. All
+   *  values are stored in SI base units; these only affect what is shown/typed. */
+  unitPrefs: UnitPrefs;
+  /** Set the display unit for one input field (keyed by a stable field id). */
+  setInputUnit: (fieldId: string, unit: string) => void;
+  /** Pin the display unit for one output value (keyed by a stable field id). */
+  setOutputUnit: (fieldId: string, pref: OutputUnitPref) => void;
+  /** Set the baseline output-unit system (Imperial/SI), clearing per-value pins. */
+  setUnitSystem: (system: UnitSystem) => void;
+  /** Set the display unit for one matrix ('geometric' or a physical unit). */
+  setMatrixUnit: (key: string, unit: string) => void;
 
   // Secondary
   updateSecondary: (patch: Partial<SecondarySchema>) => void;
@@ -195,6 +213,8 @@ export interface EditorState {
     coil: Coil;
     analysis: AnalysisResponse | null;
     stale: boolean;
+    /** Restored display units; omitted (Demo/New) resets to defaults. */
+    unitPrefs?: UnitPrefs;
   }) => void;
 }
 
@@ -235,7 +255,7 @@ export const useEditorStore = create<EditorState>((set) => {
     viewMode: 'edit' as ViewMode,
     fieldDrive: { ...DEFAULT_FIELD_DRIVE },
     fieldDisplay: { ...DEFAULT_FIELD_DISPLAY },
-    selection: [{ kind: 'secondary' }],
+    selection: [],
     tool: 'pan',
     contextMenu: null,
     placementShape: 'circle',
@@ -246,6 +266,7 @@ export const useEditorStore = create<EditorState>((set) => {
     analysis: null,
     bundle: null,
     analyzedRevision: null,
+    unitPrefs: defaultUnitPrefs(),
 
     undo: () =>
       set((s) => {
@@ -382,9 +403,17 @@ export const useEditorStore = create<EditorState>((set) => {
       }),
 
     setDomain: (patch) => mutate((c) => ({ ...c, ...patch })),
-    setUnitScale: (unitScale) => mutate((c) => ({ ...c, unit_scale: unitScale })),
     setDiscretizationOrder: (order) =>
       mutate((c) => ({ ...c, discretization_order: order })),
+
+    setInputUnit: (fieldId, unit) =>
+      set((s) => ({ unitPrefs: { ...s.unitPrefs, inputs: { ...s.unitPrefs.inputs, [fieldId]: unit } } })),
+    setOutputUnit: (fieldId, pref) =>
+      set((s) => ({ unitPrefs: { ...s.unitPrefs, outputs: { ...s.unitPrefs.outputs, [fieldId]: pref } } })),
+    setUnitSystem: (system) =>
+      set((s) => ({ unitPrefs: { ...s.unitPrefs, system, outputs: {} } })),
+    setMatrixUnit: (key, unit) =>
+      set((s) => ({ unitPrefs: { ...s.unitPrefs, matrices: { ...s.unitPrefs.matrices, [key]: unit } } })),
 
     updateSecondary: (patch) =>
       mutate((c) => ({ ...c, secondary: { ...c.secondary, ...patch } })),
@@ -447,7 +476,7 @@ export const useEditorStore = create<EditorState>((set) => {
     recordAnalysis: (analysis) =>
       set({ analysis, bundle: analysis.bundle ?? null }),
 
-    loadSession: ({ coil, analysis, stale }) =>
+    loadSession: ({ coil, analysis, stale, unitPrefs }) =>
       set((s) => {
         const revision = s.revision + 1;
         // Fresh outputs correspond to the just-loaded coil (up to date); stale
@@ -459,6 +488,8 @@ export const useEditorStore = create<EditorState>((set) => {
           analysis,
           bundle: analysis?.bundle ?? null,
           analyzedRevision,
+          // Restore saved display units on import; reset to defaults for New/Demo.
+          unitPrefs: unitPrefs ?? defaultUnitPrefs(),
           past: [...s.past, s.coil].slice(-HISTORY_LIMIT),
           future: [],
           revision,

@@ -10,6 +10,21 @@
  * primary↔secondary coupling vector and the per-tent topload charge vector.
  */
 import type { MatrixBundle } from '../api/client';
+import { fromBase, unitSymbol, UNIT_OPTIONS, type QuantityKind } from '../units/units';
+
+/** Vacuum permittivity ε₀ and permeability µ₀ (SI). The bundle carries the raw
+ *  geometric matrices; multiplying by these (with unit_scale = 1) yields the
+ *  physical values — capacitance/charge by 2π·ε₀, inductance by µ₀. */
+const EPS0 = 8.8541878128e-12;
+const MU0 = 1.25663706212e-6;
+const TWO_PI_EPS0 = 2 * Math.PI * EPS0;
+
+/** How a matrix's geometric entries map to a physical quantity: multiply each
+ *  entry by `factor` to get the SI value of `kind`. */
+export interface PhysicalUnit {
+  kind: QuantityKind;
+  factor: number;
+}
 
 /** One browsable matrix: a name, a units/shape caption, and its rows. Vectors
  *  are carried as single-column matrices so the grid renderer is uniform. */
@@ -21,6 +36,37 @@ export interface NamedMatrix {
   /** Column index labels, or null for a vector (no column header). */
   columns: number[] | null;
   rows: number[][];
+  /** Geometric→physical conversion, so the entries can be shown in real units. */
+  physical: PhysicalUnit;
+}
+
+/** The special "raw geometric units" choice (no conversion). */
+export const GEOMETRIC = 'geometric';
+
+/** Unit choices for a matrix: raw geometric first, then the physical units of
+ *  its kind. The stored preference is one of these `value`s. */
+export function matrixUnitChoices(m: NamedMatrix): { value: string; label: string }[] {
+  return [
+    { value: GEOMETRIC, label: 'Geometric (raw)' },
+    ...UNIT_OPTIONS[m.physical.kind].map((u) => ({ value: u, label: unitSymbol(u) })),
+  ];
+}
+
+/** Convert one geometric entry to the display unit (or leave it raw). */
+export function convertCell(v: number, m: NamedMatrix, pref: string): number {
+  if (pref === GEOMETRIC) return v;
+  return fromBase(v * m.physical.factor, pref, m.physical.kind);
+}
+
+/** Format a cell in the chosen unit. */
+export function formatMatrixCell(v: number, m: NamedMatrix, pref: string): string {
+  return formatCell(convertCell(v, m, pref));
+}
+
+/** CSV filename encoding the unit (e.g. `capacitance_pF.csv`,
+ *  `inductance_geometric.csv`). Uses the ASCII unit token, not the symbol. */
+export function matrixCsvName(m: NamedMatrix, pref: string): string {
+  return `${m.key}_${pref === GEOMETRIC ? 'geometric' : pref}.csv`;
 }
 
 /** Build the list of viewable matrices from a bundle, skipping any that are
@@ -34,9 +80,10 @@ export function matricesFromBundle(bundle: MatrixBundle): NamedMatrix[] {
     out.push({
       key: 'capacitance',
       name: 'Capacitance (nodal C)',
-      caption: `${cap.length}×${cap[0]?.length ?? 0} · geometric units (÷ 2π·ε₀·unit_scale)`,
+      caption: `${cap.length}×${cap[0]?.length ?? 0} · geometric (× 2π·ε₀ → F)`,
       columns: cap[0]?.map((_, j) => j) ?? [],
       rows: cap,
+      physical: { kind: 'capacitance', factor: TWO_PI_EPS0 },
     });
   }
 
@@ -45,9 +92,10 @@ export function matricesFromBundle(bundle: MatrixBundle): NamedMatrix[] {
     out.push({
       key: 'inductance',
       name: 'Inductance (segment L)',
-      caption: `${ind.length}×${ind[0]?.length ?? 0} · geometric units (÷ μ₀·unit_scale)`,
+      caption: `${ind.length}×${ind[0]?.length ?? 0} · geometric (× μ₀ → H)`,
       columns: ind[0]?.map((_, j) => j) ?? [],
       rows: ind,
+      physical: { kind: 'inductance', factor: MU0 },
     });
   }
 
@@ -56,9 +104,10 @@ export function matricesFromBundle(bundle: MatrixBundle): NamedMatrix[] {
     out.push({
       key: 'coupling',
       name: 'Coupling (primary → secondary m)',
-      caption: `length ${coupling.length} · geometric mutual-inductance vector`,
+      caption: `length ${coupling.length} · geometric mutual-inductance (× μ₀ → H)`,
       columns: null,
       rows: asColumn(coupling),
+      physical: { kind: 'inductance', factor: MU0 },
     });
   }
 
@@ -67,9 +116,10 @@ export function matricesFromBundle(bundle: MatrixBundle): NamedMatrix[] {
     out.push({
       key: 'topload_charge',
       name: 'Topload charge (per tent)',
-      caption: `length ${charge.length} · geometric induced-charge vector`,
+      caption: `length ${charge.length} · geometric induced charge at 1 V (× 2π·ε₀ → F)`,
       columns: null,
       rows: asColumn(charge),
+      physical: { kind: 'capacitance', factor: TWO_PI_EPS0 },
     });
   }
 
@@ -154,9 +204,10 @@ export function textColorFor(rgb: string | null): string {
   return luma > 0.6 ? '#0b1120' : '#f8fafc';
 }
 
-/** Serialize a matrix as CSV (row-major, full precision). */
-export function matrixToCsv(m: NamedMatrix): string {
+/** Serialize a matrix as CSV (row-major, full precision), converting each entry
+ *  into the chosen unit (`pref`; `GEOMETRIC` leaves the raw values). */
+export function matrixToCsv(m: NamedMatrix, pref: string = GEOMETRIC): string {
   const header = m.columns ? ['', ...m.columns].join(',') : null;
-  const body = m.rows.map((row, i) => [i, ...row].join(','));
+  const body = m.rows.map((row, i) => [i, ...row.map((v) => convertCell(v, m, pref))].join(','));
   return (header ? [header, ...body] : body).join('\n');
 }

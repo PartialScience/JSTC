@@ -15,7 +15,7 @@ import { isSelected, refKey } from '../domain/coil';
 import { convertShape, insertVertex, deleteVertex, type ShapeKind } from '../editor/shapeOps';
 import { FieldDrivePanel } from './FieldDrivePanel';
 import { useEditorStore } from '../state/store';
-import { NumberField, SelectField } from './fields';
+import { NumberField, QuantityField, SelectField } from './fields';
 
 const MATERIALS: readonly MaterialSchema[] = ['copper', 'aluminum'];
 const SHAPE_KINDS: readonly ShapeKind[] = ['circle', 'rectangle', 'polygon'];
@@ -91,22 +91,28 @@ function ConductorEditor({
       {shape.kind === 'circle' ? (
         <>
           <div className="field-row">
-            <NumberField
+            <QuantityField
               label="center r"
+              kind="length"
+              fieldId={`${testPrefix}-cr`}
               value={shape.center[0]}
               min={0}
               onCommit={(r) => onPatch({ shape: { ...shape, center: [r, shape.center[1]] } })}
               testId={`${testPrefix}-cr`}
             />
-            <NumberField
+            <QuantityField
               label="center z"
+              kind="length"
+              fieldId={`${testPrefix}-cz`}
               value={shape.center[1]}
               onCommit={(z) => onPatch({ shape: { ...shape, center: [shape.center[0], z] } })}
               testId={`${testPrefix}-cz`}
             />
           </div>
-          <NumberField
+          <QuantityField
             label="radius"
+            kind="length"
+            fieldId={`${testPrefix}-radius`}
             value={shape.radius}
             min={0}
             onCommit={(radius) => onPatch({ shape: { ...shape, radius } })}
@@ -118,8 +124,10 @@ function ConductorEditor({
           <div className="field-note">{shape.kind} — {shape.vertices.length} vertices</div>
           {shape.vertices.map((v, i) => (
             <div className="field-row vertex-row" key={i}>
-              <NumberField
+              <QuantityField
                 label={`v${i} r`}
+                kind="length"
+                fieldId={`${testPrefix}-v${i}-r`}
                 value={v[0]}
                 min={0}
                 onCommit={(r) =>
@@ -134,8 +142,10 @@ function ConductorEditor({
                 }
                 testId={`${testPrefix}-v${i}-r`}
               />
-              <NumberField
+              <QuantityField
                 label={`v${i} z`}
+                kind="length"
+                fieldId={`${testPrefix}-v${i}-z`}
                 value={v[1]}
                 onCommit={(z) =>
                   onPatch({
@@ -187,7 +197,6 @@ function ConductorEditor({
 export function Sidebar() {
   const coil = useEditorStore((s) => s.coil);
   const setDomain = useEditorStore((s) => s.setDomain);
-  const setUnitScale = useEditorStore((s) => s.setUnitScale);
   const setOrder = useEditorStore((s) => s.setDiscretizationOrder);
   const updateSecondary = useEditorStore((s) => s.updateSecondary);
   const updatePrimary = useEditorStore((s) => s.updatePrimary);
@@ -230,10 +239,9 @@ export function Sidebar() {
 
       <Section title="Domain">
         <div className="field-row">
-          <NumberField label="r_max" value={coil.r_max} min={0} onCommit={(r_max) => setDomain({ r_max })} testId="domain-rmax" />
-          <NumberField label="z_max" value={coil.z_max} min={0} onCommit={(z_max) => setDomain({ z_max })} testId="domain-zmax" />
+          <QuantityField label="r_max" kind="length" fieldId="domain-rmax" value={coil.r_max} min={0} onCommit={(r_max) => setDomain({ r_max })} testId="domain-rmax" />
+          <QuantityField label="z_max" kind="length" fieldId="domain-zmax" value={coil.z_max} min={0} onCommit={(z_max) => setDomain({ z_max })} testId="domain-zmax" />
         </div>
-        <NumberField label="unit scale (m/unit)" value={coil.unit_scale} onCommit={setUnitScale} testId="domain-unitscale" />
         <NumberField label="discretization order" value={coil.discretization_order} step={1} min={2} onCommit={(n) => setOrder(Math.round(n))} testId="domain-order" />
       </Section>
 
@@ -241,14 +249,14 @@ export function Sidebar() {
         <SelectField label="Material" value={sec.material} options={MATERIALS} onChange={(material) => updateSecondary({ material })} testId="sec-material" />
         <NumberField label="turns" value={sec.turn_fxn.total_turns} min={0} onCommit={(total_turns) => updateSecondary({ turn_fxn: { ...sec.turn_fxn, total_turns } })} testId="sec-turns" />
         <div className="field-row">
-          <NumberField label="start r" value={sec.start[0]} min={0} onCommit={(r) => updateSecondary({ start: [r, sec.start[1]] })} testId="sec-start-r" />
-          <NumberField label="start z" value={sec.start[1]} onCommit={(z) => updateSecondary({ start: [sec.start[0], z] })} testId="sec-start-z" />
+          <QuantityField label="start r" kind="length" fieldId="sec-start-r" value={sec.start[0]} min={0} onCommit={(r) => updateSecondary({ start: [r, sec.start[1]] })} testId="sec-start-r" />
+          <QuantityField label="start z" kind="length" fieldId="sec-start-z" value={sec.start[1]} onCommit={(z) => updateSecondary({ start: [sec.start[0], z] })} testId="sec-start-z" />
         </div>
         <div className="field-row">
-          <NumberField label="end r" value={sec.end[0]} min={0} onCommit={(r) => updateSecondary({ end: [r, sec.end[1]] })} testId="sec-end-r" />
-          <NumberField label="end z" value={sec.end[1]} onCommit={(z) => updateSecondary({ end: [sec.end[0], z] })} testId="sec-end-z" />
+          <QuantityField label="end r" kind="length" fieldId="sec-end-r" value={sec.end[0]} min={0} onCommit={(r) => updateSecondary({ end: [r, sec.end[1]] })} testId="sec-end-r" />
+          <QuantityField label="end z" kind="length" fieldId="sec-end-z" value={sec.end[1]} onCommit={(z) => updateSecondary({ end: [sec.end[0], z] })} testId="sec-end-z" />
         </div>
-        <NumberField label="wire diameter" value={sec.wire_dia} min={0} onCommit={(wire_dia) => updateSecondary({ wire_dia })} testId="sec-wire-dia" />
+        <QuantityField label="wire diameter" kind="length" fieldId="sec-wire-dia" value={sec.wire_dia} min={0} onCommit={(wire_dia) => updateSecondary({ wire_dia })} testId="sec-wire-dia" />
       </Section>
 
       {prim && (
@@ -263,32 +271,32 @@ export function Sidebar() {
               updatePrimary({
                 cross_section:
                   kind === 'circular'
-                    ? { kind: 'circular', diameter: 0.25 }
-                    : { kind: 'rectangular', width: 1, height: 0.1 },
+                    ? { kind: 'circular', diameter: 0.00635 } // 0.25 in
+                    : { kind: 'rectangular', width: 0.0254, height: 0.00254 }, // 1 in × 0.1 in
               })
             }
             testId="prim-xsection"
           />
           {prim.cross_section.kind === 'circular' ? (
-            <NumberField label="conductor dia" value={prim.cross_section.diameter} min={0} onCommit={(diameter) => updatePrimary({ cross_section: { kind: 'circular', diameter } })} testId="prim-dia" />
+            <QuantityField label="conductor dia" kind="length" fieldId="prim-dia" value={prim.cross_section.diameter} min={0} onCommit={(diameter) => updatePrimary({ cross_section: { kind: 'circular', diameter } })} testId="prim-dia" />
           ) : (
             <div className="field-row">
-              <NumberField label="width" value={prim.cross_section.width} min={0} onCommit={(width) => updatePrimary({ cross_section: { kind: 'rectangular', width, height: prim.cross_section.kind === 'rectangular' ? prim.cross_section.height : 0.1 } })} testId="prim-width" />
-              <NumberField label="height" value={prim.cross_section.height} min={0} onCommit={(height) => updatePrimary({ cross_section: { kind: 'rectangular', width: prim.cross_section.kind === 'rectangular' ? prim.cross_section.width : 1, height } })} testId="prim-height" />
+              <QuantityField label="width" kind="length" fieldId="prim-width" value={prim.cross_section.width} min={0} onCommit={(width) => updatePrimary({ cross_section: { kind: 'rectangular', width, height: prim.cross_section.kind === 'rectangular' ? prim.cross_section.height : 0.00254 } })} testId="prim-width" />
+              <QuantityField label="height" kind="length" fieldId="prim-height" value={prim.cross_section.height} min={0} onCommit={(height) => updatePrimary({ cross_section: { kind: 'rectangular', width: prim.cross_section.kind === 'rectangular' ? prim.cross_section.width : 0.0254, height } })} testId="prim-height" />
             </div>
           )}
           <div className="field-row">
-            <NumberField label="start r" value={prim.start[0]} min={0} onCommit={(r) => updatePrimary({ start: [r, prim.start[1]] })} testId="prim-start-r" />
-            <NumberField label="start z" value={prim.start[1]} onCommit={(z) => updatePrimary({ start: [prim.start[0], z] })} testId="prim-start-z" />
+            <QuantityField label="start r" kind="length" fieldId="prim-start-r" value={prim.start[0]} min={0} onCommit={(r) => updatePrimary({ start: [r, prim.start[1]] })} testId="prim-start-r" />
+            <QuantityField label="start z" kind="length" fieldId="prim-start-z" value={prim.start[1]} onCommit={(z) => updatePrimary({ start: [prim.start[0], z] })} testId="prim-start-z" />
           </div>
           <div className="field-row">
-            <NumberField label="end r" value={prim.end[0]} min={0} onCommit={(r) => updatePrimary({ end: [r, prim.end[1]] })} testId="prim-end-r" />
-            <NumberField label="end z" value={prim.end[1]} onCommit={(z) => updatePrimary({ end: [prim.end[0], z] })} testId="prim-end-z" />
+            <QuantityField label="end r" kind="length" fieldId="prim-end-r" value={prim.end[0]} min={0} onCommit={(r) => updatePrimary({ end: [r, prim.end[1]] })} testId="prim-end-r" />
+            <QuantityField label="end z" kind="length" fieldId="prim-end-z" value={prim.end[1]} onCommit={(z) => updatePrimary({ end: [prim.end[0], z] })} testId="prim-end-z" />
           </div>
-          <NumberField label="tank capacitance (F)" value={prim.tank_capacitance} onCommit={(tank_capacitance) => updatePrimary({ tank_capacitance })} testId="prim-tank" />
+          <QuantityField label="tank capacitance" kind="capacitance" fieldId="prim-tank" defaultUnit="nF" value={prim.tank_capacitance} min={0} onCommit={(tank_capacitance) => updatePrimary({ tank_capacitance })} testId="prim-tank" />
           <div className="field-row">
-            <NumberField label="lead length" value={prim.lead_length} onCommit={(lead_length) => updatePrimary({ lead_length })} testId="prim-lead-len" />
-            <NumberField label="lead dia" value={prim.lead_dia} onCommit={(lead_dia) => updatePrimary({ lead_dia })} testId="prim-lead-dia" />
+            <QuantityField label="lead length" kind="length" fieldId="prim-lead-len" value={prim.lead_length} onCommit={(lead_length) => updatePrimary({ lead_length })} testId="prim-lead-len" />
+            <QuantityField label="lead dia" kind="length" fieldId="prim-lead-dia" value={prim.lead_dia} onCommit={(lead_dia) => updatePrimary({ lead_dia })} testId="prim-lead-dia" />
           </div>
         </Section>
       )}
