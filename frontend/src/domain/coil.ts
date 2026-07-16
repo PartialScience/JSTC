@@ -77,7 +77,7 @@ export function toggleRef(selection: Selection, ref: ComponentRef): Selection {
 export function newSecondary(start: Point, end: Point): SecondarySchema {
   return {
     material: 'copper',
-    turn_fxn: { kind: 'uniform', total_turns: 800, t_min: 0, t_max: 1 },
+    turn_fxn: { kind: 'uniform', total_turns: 895, t_min: 0, t_max: 1 },
     start,
     end,
     wire_dia: 0.000508, // 0.02 in
@@ -87,7 +87,7 @@ export function newSecondary(start: Point, end: Point): SecondarySchema {
 export function newPrimary(start: Point, end: Point): PrimarySchema {
   return {
     material: 'copper',
-    turn_fxn: { kind: 'uniform', total_turns: 8, t_min: 0, t_max: 1 },
+    turn_fxn: { kind: 'uniform', total_turns: 8.438, t_min: 0, t_max: 1 },
     cross_section: { kind: 'circular', diameter: 0.00635 }, // 0.25 in
     start,
     end,
