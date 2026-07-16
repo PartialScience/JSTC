@@ -15,28 +15,13 @@ import {
   bIntensityMap,
   contourSegments,
   eIntensityMap,
+  fieldDataFromResponse,
   robustMax,
   sampleArrows,
-  type FieldData,
 } from './fieldMath';
 
 interface ToScreen {
   (x: number, z: number): { x: number; y: number };
-}
-
-function toFieldData(resp: FieldResponse): FieldData {
-  return {
-    nr: resp.nr,
-    nz: resp.nz,
-    real: resp.real,
-    imag: resp.imag,
-    mask: resp.mask,
-    rMin: resp.r_min,
-    rMax: resp.r_max,
-    zMin: resp.z_min,
-    zMax: resp.z_max,
-    unitScale: resp.unit_scale,
-  };
 }
 
 export function FieldLayer({
@@ -48,7 +33,7 @@ export function FieldLayer({
   toScreen: ToScreen;
   display: FieldDisplay;
 }) {
-  const f = useMemo(() => toFieldData(field), [field]);
+  const f = useMemo(() => fieldDataFromResponse(field), [field]);
 
   // The scalar we colour by, and its colour-scale max.
   const { scalar, vmax, potential } = useMemo(() => {

@@ -4,6 +4,7 @@
  * the component parameter panel while a field is on screen.
  */
 import { useEditorStore } from '../state/store';
+import { CursorList } from './CursorPanel';
 import { QuantityField, SelectField } from './fields';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -127,6 +128,10 @@ export function FieldDrivePanel() {
           />
           field vectors
         </label>
+      </Section>
+
+      <Section title="Cursors">
+        <CursorList />
       </Section>
     </div>
   );

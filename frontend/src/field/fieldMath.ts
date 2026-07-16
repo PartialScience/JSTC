@@ -12,6 +12,8 @@
  * mask are NaN and propagate NaN into any derivative that touches them.
  */
 
+import type { FieldResponse } from '../api/client';
+
 export interface FieldData {
   nr: number;
   nz: number;
@@ -27,7 +29,26 @@ export interface FieldData {
   unitScale: number;
 }
 
+/** Adapt an API field response to the client-side grid view. */
+export function fieldDataFromResponse(resp: FieldResponse): FieldData {
+  return {
+    nr: resp.nr,
+    nz: resp.nz,
+    real: resp.real,
+    imag: resp.imag,
+    mask: resp.mask,
+    rMin: resp.r_min,
+    rMax: resp.r_max,
+    zMin: resp.z_min,
+    zMax: resp.z_max,
+    unitScale: resp.unit_scale,
+  };
+}
+
 const idx = (nr: number, iz: number, ir: number) => iz * nr + ir;
+
+/** Row-major flat index into an nr×nz grid (z outer, r inner). */
+export const idxOf = idx;
 
 /** Complex magnitude |field| per cell (NaN where masked). */
 export function magnitudeMap(f: FieldData): Float64Array {
@@ -39,7 +60,7 @@ export function magnitudeMap(f: FieldData): Float64Array {
 }
 
 /** Metre spacings of the grid (world spacing * unitScale). */
-function spacings(f: FieldData): { dr: number; dz: number } {
+export function spacings(f: FieldData): { dr: number; dz: number } {
   return {
     dr: ((f.rMax - f.rMin) / (f.nr - 1)) * f.unitScale,
     dz: ((f.zMax - f.zMin) / (f.nz - 1)) * f.unitScale,
@@ -49,7 +70,7 @@ function spacings(f: FieldData): { dr: number; dz: number } {
 /** Central-difference complex partial derivatives at (iz, ir). Returns the
  *  four scalars d/dr and d/dz of the real and imaginary parts, or null if
  *  any needed neighbor is out of range or masked. */
-function complexGrads(
+export function complexGrads(
   f: FieldData,
   iz: number,
   ir: number,
