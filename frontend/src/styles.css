@@ -1055,6 +1055,173 @@ button[data-testid='spice-export'] {
   width: auto;
 }
 
+/* Live pointer coordinate readout, pinned bottom-right of the canvas. Updated
+ * imperatively and faded in only while the pointer is over the view. */
+.coord-readout {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  white-space: nowrap;
+}
+
+/* --- Field probe cursors (sidebar) ---------------------------------------- */
+.cursor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cursor-add {
+  width: 100%;
+  background: none;
+  border: 1px dashed var(--border-strong);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cursor-add:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.cursor-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cursor-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.cursor-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The dot's white ring + dark halo mirror the on-canvas point, so the colour
+ * reads on any panel background and matches the point it names. */
+.cursor-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: none;
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.cursor-name {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.cursor-remove {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  cursor: pointer;
+  flex: none;
+}
+.cursor-remove:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.cursor-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Each value row is a click-to-copy target. The "copy" hint appears on hover
+ * (and always, faintly, on touch) so the interaction is discoverable without a
+ * standing button. */
+.cursor-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  color: var(--text);
+  text-align: left;
+  padding: 5px 8px;
+  cursor: pointer;
+  font: inherit;
+}
+.cursor-rows .cursor-row:first-child {
+  border-top: none;
+}
+.cursor-row:hover:not(:disabled) {
+  background: var(--panel-alt);
+}
+.cursor-row:disabled {
+  cursor: default;
+}
+.cursor-row-label {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.cursor-row-value {
+  min-width: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.cursor-row-hint {
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.1s;
+  white-space: nowrap;
+}
+.cursor-row:hover:not(:disabled) .cursor-row-hint {
+  opacity: 0.7;
+}
+.cursor-row.copied .cursor-row-hint {
+  opacity: 1;
+  color: var(--accent);
+}
+
+@media (pointer: coarse) {
+  .cursor-row {
+    padding: 9px 8px;
+  }
+  .cursor-row-hint {
+    opacity: 0.45;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Units: input adornment + inline validation, output unit picker,    */
 /* global Imperial/SI toggle, matrix unit selector.                    */

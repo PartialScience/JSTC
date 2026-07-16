@@ -88,6 +88,31 @@ export const DEFAULT_FIELD_DISPLAY: FieldDisplay = {
   showArrows: false,
 };
 
+/** A movable probe point shown in the field views. Stored in WORLD coordinates
+ *  (SI metres, the same frame as the geometry): `x` may be negative (the
+ *  mirrored left half of the cross-section), while the physical radius shown to
+ *  the user is |x|. Shared across the E and B views and hidden in every other
+ *  view. `color` is assigned once at creation and identifies the point in both
+ *  the viewer (its dot) and the sidebar (its bullet). */
+export interface FieldCursor {
+  id: string;
+  x: number;
+  z: number;
+  color: string;
+}
+
+/** Cursor colours, cycled by creation order. Saturated hues that — helped by
+ *  the dot's white outline ring — stay legible on both field colour scales:
+ *  the dark→hot inferno intensity map and the blue-white-red potential map. */
+export const CURSOR_COLORS = [
+  '#22d3ee', // cyan
+  '#f43f9d', // magenta
+  '#a3e635', // lime
+  '#fb923c', // orange
+  '#c084fc', // violet
+  '#2dd4bf', // teal
+];
+
 /** Grid resolution for field requests (fixed; the client downsamples/renders). */
 export const FIELD_GRID_NR = 120;
 export const FIELD_GRID_NZ = 180;
@@ -148,6 +173,16 @@ export interface EditorState {
   setViewMode: (mode: ViewMode) => void;
   setFieldDrive: (patch: Partial<FieldDrive>) => void;
   setFieldDisplay: (patch: Partial<FieldDisplay>) => void;
+
+  /** Field probe points (shared by the E and B views; hidden elsewhere). */
+  fieldCursors: FieldCursor[];
+  /** Add a probe point near the middle of the domain's right half; the user
+   *  drags it from there. Its colour is the next in `CURSOR_COLORS`. */
+  addFieldCursor: () => void;
+  /** Relocate a probe point (drag) to a new world position. */
+  moveFieldCursor: (id: string, x: number, z: number) => void;
+  /** Remove a probe point. */
+  removeFieldCursor: (id: string) => void;
 
   // Context menu
   openContextMenu: (menu: ContextMenuState) => void;
@@ -228,6 +263,9 @@ const PASTE_OFFSET_FRAC = 0.04;
 
 export const useEditorStore = create<EditorState>((set) => {
   let lastPush = 0;
+  // Monotonic across the session so ids stay unique and colours keep cycling
+  // even as points are added and removed.
+  let cursorSeq = 0;
 
   /** Record the current coil onto the undo stack (coalescing rapid bursts
    *  into one step) and clear the redo stack. */
@@ -267,6 +305,7 @@ export const useEditorStore = create<EditorState>((set) => {
     bundle: null,
     analyzedRevision: null,
     unitPrefs: defaultUnitPrefs(),
+    fieldCursors: [],
 
     undo: () =>
       set((s) => {
@@ -350,6 +389,24 @@ export const useEditorStore = create<EditorState>((set) => {
       set((s) => ({ fieldDrive: { ...s.fieldDrive, ...patch } })),
     setFieldDisplay: (patch) =>
       set((s) => ({ fieldDisplay: { ...s.fieldDisplay, ...patch } })),
+
+    addFieldCursor: () =>
+      set((s) => {
+        const seq = cursorSeq++;
+        const cursor: FieldCursor = {
+          id: `cursor-${seq + 1}`,
+          x: s.coil.r_max / 2,
+          z: s.coil.z_max / 2,
+          color: CURSOR_COLORS[seq % CURSOR_COLORS.length]!,
+        };
+        return { fieldCursors: [...s.fieldCursors, cursor] };
+      }),
+    moveFieldCursor: (id, x, z) =>
+      set((s) => ({
+        fieldCursors: s.fieldCursors.map((c) => (c.id === id ? { ...c, x, z } : c)),
+      })),
+    removeFieldCursor: (id) =>
+      set((s) => ({ fieldCursors: s.fieldCursors.filter((c) => c.id !== id) })),
 
     openContextMenu: (contextMenu) => set({ contextMenu }),
     closeContextMenu: () => set({ contextMenu: null }),
@@ -470,6 +527,7 @@ export const useEditorStore = create<EditorState>((set) => {
         future: [],
         revision: s.revision + 1,
         selection: [],
+        fieldCursors: [],
       })),
 
     markRun: (revision) => set({ analyzedRevision: revision }),
@@ -495,6 +553,7 @@ export const useEditorStore = create<EditorState>((set) => {
           revision,
           selection: [],
           contextMenu: null,
+          fieldCursors: [],
         };
       }),
   };

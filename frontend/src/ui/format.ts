@@ -21,6 +21,22 @@ export function eng(value: number, unit: string, sig = 3): string {
   return `${scaled.toPrecision(sig)} ${prefix}${unit}`;
 }
 
+/**
+ * Like `eng`, but at full precision with trailing zeros trimmed — for a
+ * clipboard copy where the on-screen number is deliberately rounded (3 s.f.)
+ * but the copied value should carry the real magnitude. Same SI prefix as the
+ * display, so a pasted "12.34567 kV" reads the same way it looked, only exact.
+ */
+export function engFull(value: number, unit: string, sig = 12): string {
+  if (value === 0) return `0 ${unit}`;
+  if (!Number.isFinite(value)) return `${unit}`;
+  const abs = Math.abs(value);
+  const found = PREFIXES.find(([m]) => abs >= m) ?? PREFIXES[PREFIXES.length - 1]!;
+  const [mult, prefix] = found;
+  const scaled = value / mult;
+  return `${String(Number(scaled.toPrecision(sig)))} ${prefix}${unit}`;
+}
+
 export function hz(value: number): string {
   return eng(value, 'Hz');
 }
