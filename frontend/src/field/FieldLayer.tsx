@@ -16,6 +16,7 @@ import {
   contourSegments,
   eIntensityMap,
   fieldDataFromResponse,
+  referencePhase,
   robustMax,
   sampleArrows,
 } from './fieldMath';
@@ -38,9 +39,11 @@ export function FieldLayer({
   // The scalar we colour by, and its colour-scale max.
   const { scalar, vmax, potential } = useMemo(() => {
     if (display.colormap === 'potential') {
-      // Instantaneous (real-part) potential, signed -> diverging map.
+      // Signed potential at the display phase (the "peak field" instant, so the
+      // hot topload reads at its positive peak) -> diverging map.
+      const { cos, sin } = referencePhase(f);
       const s = new Float64Array(f.nr * f.nz);
-      for (let i = 0; i < s.length; i++) s[i] = f.mask[i] ? f.real[i]! : NaN;
+      for (let i = 0; i < s.length; i++) s[i] = f.mask[i] ? f.real[i]! * cos - f.imag[i]! * sin : NaN;
       const absVals = new Float64Array(s.length);
       for (let i = 0; i < s.length; i++) absVals[i] = Math.abs(s[i]!);
       return { scalar: s, vmax: robustMax(absVals), potential: true };

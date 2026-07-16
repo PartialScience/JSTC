@@ -9,9 +9,9 @@
  * Two deliberate conventions, matching the existing overlays:
  *   - `intensity` is the COMPLEX magnitude (|E| / |B|), exactly what the
  *     intensity colour map shows.
- *   - the `(vr, vz)` vector is the INSTANTANEOUS real part (the field at phase
- *     0), exactly the direction `sampleArrows` draws. So |(vr, vz)| is the
- *     instantaneous magnitude and need not equal `intensity` under an AC drive.
+ *   - `potential` and the `(vr, vz)` vector are taken at the DISPLAY PHASE (the
+ *     "peak field" instant — see `referencePhase`), exactly what the potential
+ *     map and `sampleArrows` use, so the readouts agree with the overlay.
  *
  * Points outside the grid, or whose interpolation stencil touches a masked
  * (conductor / off-domain) node, sample to null — an honest "—", the same holes
@@ -22,6 +22,8 @@ import {
   complexGrads,
   eIntensityMap,
   idxOf,
+  referencePhase,
+  rotatedPartials,
   spacings,
   type FieldData,
 } from './fieldMath';
@@ -42,10 +44,14 @@ export interface FieldSample {
 
 const NULL_SAMPLE: FieldSample = { potential: null, intensity: null, vr: null, vz: null };
 
-/** Per-node instantaneous (real-part) field components, NaN where a central
- *  difference isn't available (edge or masked stencil). Mirrors `sampleArrows`
- *  but keeps every node and does not normalise. */
-function vectorComponents(f: FieldData, kind: FieldKind): { vr: Float64Array; vz: Float64Array } {
+/** Per-node display-phase field components, NaN where a central difference
+ *  isn't available (edge or masked stencil). Mirrors `sampleArrows` but keeps
+ *  every node and does not normalise. */
+function vectorComponents(
+  f: FieldData,
+  kind: FieldKind,
+  phase: { cos: number; sin: number },
+): { vr: Float64Array; vz: Float64Array } {
   const { dr, dz } = spacings(f);
   const vr = new Float64Array(f.nr * f.nz).fill(NaN);
   const vz = new Float64Array(f.nr * f.nz).fill(NaN);
@@ -54,13 +60,15 @@ function vectorComponents(f: FieldData, kind: FieldKind): { vr: Float64Array; vz
       const g = complexGrads(f, iz, ir, dr, dz);
       if (!g) continue;
       const c = idxOf(f.nr, iz, ir);
+      const p = rotatedPartials(g, phase);
       if (kind === 'E') {
-        vr[c] = -g.drRe;
-        vz[c] = -g.dzRe;
+        vr[c] = -p.dr;
+        vz[c] = -p.dz;
       } else {
         const r = (f.rMin + ((f.rMax - f.rMin) * ir) / (f.nr - 1)) * f.unitScale;
-        vr[c] = -g.dzRe;
-        vz[c] = g.drRe + (r > 1e-12 ? f.real[c]! / r : 0);
+        const aRot = f.real[c]! * phase.cos - f.imag[c]! * phase.sin;
+        vr[c] = -p.dz;
+        vz[c] = p.dr + (r > 1e-12 ? aRot / r : 0);
       }
     }
   }
@@ -100,11 +108,13 @@ export interface FieldSampler {
  * field response share the same maps.
  */
 export function buildFieldSampler(f: FieldData, kind: FieldKind): FieldSampler {
-  // Potential is the real (instantaneous) part; masked nodes are holes.
+  const phase = referencePhase(f);
+  // Potential at the display phase (Re[φ·e^{iθ}]); masked nodes are holes.
   const pot = new Float64Array(f.nr * f.nz);
-  for (let i = 0; i < pot.length; i++) pot[i] = f.mask[i] ? f.real[i]! : NaN;
+  for (let i = 0; i < pot.length; i++)
+    pot[i] = f.mask[i] ? f.real[i]! * phase.cos - f.imag[i]! * phase.sin : NaN;
   const intensity = kind === 'E' ? eIntensityMap(f) : bIntensityMap(f);
-  const { vr, vz } = vectorComponents(f, kind);
+  const { vr, vz } = vectorComponents(f, kind, phase);
 
   const spanR = f.rMax - f.rMin;
   const spanZ = f.zMax - f.zMin;
