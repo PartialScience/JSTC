@@ -29,6 +29,12 @@ import {
 } from '../domain/coil';
 import { translateComponents } from '../editor/move';
 import { convertShape, translateShape, type ShapeKind } from '../editor/shapeOps';
+import {
+  defaultUnitPrefs,
+  type OutputUnitPref,
+  type UnitPrefs,
+  type UnitSystem,
+} from '../units/units';
 
 export type HandleKind = 'start' | 'end' | 'center' | 'radius' | 'vertex' | 'wire';
 
@@ -81,6 +87,31 @@ export const DEFAULT_FIELD_DISPLAY: FieldDisplay = {
   showContours: true,
   showArrows: false,
 };
+
+/** A movable probe point shown in the field views. Stored in WORLD coordinates
+ *  (SI metres, the same frame as the geometry): `x` may be negative (the
+ *  mirrored left half of the cross-section), while the physical radius shown to
+ *  the user is |x|. Shared across the E and B views and hidden in every other
+ *  view. `color` is assigned once at creation and identifies the point in both
+ *  the viewer (its dot) and the sidebar (its bullet). */
+export interface FieldCursor {
+  id: string;
+  x: number;
+  z: number;
+  color: string;
+}
+
+/** Cursor colours, cycled by creation order. Saturated hues that — helped by
+ *  the dot's white outline ring — stay legible on both field colour scales:
+ *  the dark→hot inferno intensity map and the blue-white-red potential map. */
+export const CURSOR_COLORS = [
+  '#22d3ee', // cyan
+  '#f43f9d', // magenta
+  '#a3e635', // lime
+  '#fb923c', // orange
+  '#c084fc', // violet
+  '#2dd4bf', // teal
+];
 
 /** Grid resolution for field requests (fixed; the client downsamples/renders). */
 export const FIELD_GRID_NR = 120;
@@ -143,6 +174,16 @@ export interface EditorState {
   setFieldDrive: (patch: Partial<FieldDrive>) => void;
   setFieldDisplay: (patch: Partial<FieldDisplay>) => void;
 
+  /** Field probe points (shared by the E and B views; hidden elsewhere). */
+  fieldCursors: FieldCursor[];
+  /** Add a probe point near the middle of the domain's right half; the user
+   *  drags it from there. Its colour is the next in `CURSOR_COLORS`. */
+  addFieldCursor: () => void;
+  /** Relocate a probe point (drag) to a new world position. */
+  moveFieldCursor: (id: string, x: number, z: number) => void;
+  /** Remove a probe point. */
+  removeFieldCursor: (id: string) => void;
+
   // Context menu
   openContextMenu: (menu: ContextMenuState) => void;
   closeContextMenu: () => void;
@@ -158,8 +199,20 @@ export interface EditorState {
 
   // Whole-coil scalar fields
   setDomain: (patch: Partial<Pick<Coil, 'r_max' | 'z_max'>>) => void;
-  setUnitScale: (unitScale: number) => void;
   setDiscretizationOrder: (order: number) => void;
+
+  // --- Display unit preferences (cosmetic; not undoable; round-tripped) ---
+  /** Per-field input units, per-kind output units, and per-matrix units. All
+   *  values are stored in SI base units; these only affect what is shown/typed. */
+  unitPrefs: UnitPrefs;
+  /** Set the display unit for one input field (keyed by a stable field id). */
+  setInputUnit: (fieldId: string, unit: string) => void;
+  /** Pin the display unit for one output value (keyed by a stable field id). */
+  setOutputUnit: (fieldId: string, pref: OutputUnitPref) => void;
+  /** Set the baseline output-unit system (Imperial/SI), clearing per-value pins. */
+  setUnitSystem: (system: UnitSystem) => void;
+  /** Set the display unit for one matrix ('geometric' or a physical unit). */
+  setMatrixUnit: (key: string, unit: string) => void;
 
   // Secondary
   updateSecondary: (patch: Partial<SecondarySchema>) => void;
@@ -195,6 +248,8 @@ export interface EditorState {
     coil: Coil;
     analysis: AnalysisResponse | null;
     stale: boolean;
+    /** Restored display units; omitted (Demo/New) resets to defaults. */
+    unitPrefs?: UnitPrefs;
   }) => void;
 }
 
@@ -208,6 +263,9 @@ const PASTE_OFFSET_FRAC = 0.04;
 
 export const useEditorStore = create<EditorState>((set) => {
   let lastPush = 0;
+  // Monotonic across the session so ids stay unique and colours keep cycling
+  // even as points are added and removed.
+  let cursorSeq = 0;
 
   /** Record the current coil onto the undo stack (coalescing rapid bursts
    *  into one step) and clear the redo stack. */
@@ -235,7 +293,7 @@ export const useEditorStore = create<EditorState>((set) => {
     viewMode: 'edit' as ViewMode,
     fieldDrive: { ...DEFAULT_FIELD_DRIVE },
     fieldDisplay: { ...DEFAULT_FIELD_DISPLAY },
-    selection: [{ kind: 'secondary' }],
+    selection: [],
     tool: 'pan',
     contextMenu: null,
     placementShape: 'circle',
@@ -246,6 +304,8 @@ export const useEditorStore = create<EditorState>((set) => {
     analysis: null,
     bundle: null,
     analyzedRevision: null,
+    unitPrefs: defaultUnitPrefs(),
+    fieldCursors: [],
 
     undo: () =>
       set((s) => {
@@ -330,6 +390,24 @@ export const useEditorStore = create<EditorState>((set) => {
     setFieldDisplay: (patch) =>
       set((s) => ({ fieldDisplay: { ...s.fieldDisplay, ...patch } })),
 
+    addFieldCursor: () =>
+      set((s) => {
+        const seq = cursorSeq++;
+        const cursor: FieldCursor = {
+          id: `cursor-${seq + 1}`,
+          x: s.coil.r_max / 2,
+          z: s.coil.z_max / 2,
+          color: CURSOR_COLORS[seq % CURSOR_COLORS.length]!,
+        };
+        return { fieldCursors: [...s.fieldCursors, cursor] };
+      }),
+    moveFieldCursor: (id, x, z) =>
+      set((s) => ({
+        fieldCursors: s.fieldCursors.map((c) => (c.id === id ? { ...c, x, z } : c)),
+      })),
+    removeFieldCursor: (id) =>
+      set((s) => ({ fieldCursors: s.fieldCursors.filter((c) => c.id !== id) })),
+
     openContextMenu: (contextMenu) => set({ contextMenu }),
     closeContextMenu: () => set({ contextMenu: null }),
 
@@ -382,9 +460,17 @@ export const useEditorStore = create<EditorState>((set) => {
       }),
 
     setDomain: (patch) => mutate((c) => ({ ...c, ...patch })),
-    setUnitScale: (unitScale) => mutate((c) => ({ ...c, unit_scale: unitScale })),
     setDiscretizationOrder: (order) =>
       mutate((c) => ({ ...c, discretization_order: order })),
+
+    setInputUnit: (fieldId, unit) =>
+      set((s) => ({ unitPrefs: { ...s.unitPrefs, inputs: { ...s.unitPrefs.inputs, [fieldId]: unit } } })),
+    setOutputUnit: (fieldId, pref) =>
+      set((s) => ({ unitPrefs: { ...s.unitPrefs, outputs: { ...s.unitPrefs.outputs, [fieldId]: pref } } })),
+    setUnitSystem: (system) =>
+      set((s) => ({ unitPrefs: { ...s.unitPrefs, system, outputs: {} } })),
+    setMatrixUnit: (key, unit) =>
+      set((s) => ({ unitPrefs: { ...s.unitPrefs, matrices: { ...s.unitPrefs.matrices, [key]: unit } } })),
 
     updateSecondary: (patch) =>
       mutate((c) => ({ ...c, secondary: { ...c.secondary, ...patch } })),
@@ -441,13 +527,14 @@ export const useEditorStore = create<EditorState>((set) => {
         future: [],
         revision: s.revision + 1,
         selection: [],
+        fieldCursors: [],
       })),
 
     markRun: (revision) => set({ analyzedRevision: revision }),
     recordAnalysis: (analysis) =>
       set({ analysis, bundle: analysis.bundle ?? null }),
 
-    loadSession: ({ coil, analysis, stale }) =>
+    loadSession: ({ coil, analysis, stale, unitPrefs }) =>
       set((s) => {
         const revision = s.revision + 1;
         // Fresh outputs correspond to the just-loaded coil (up to date); stale
@@ -459,11 +546,14 @@ export const useEditorStore = create<EditorState>((set) => {
           analysis,
           bundle: analysis?.bundle ?? null,
           analyzedRevision,
+          // Restore saved display units on import; reset to defaults for New/Demo.
+          unitPrefs: unitPrefs ?? defaultUnitPrefs(),
           past: [...s.past, s.coil].slice(-HISTORY_LIMIT),
           future: [],
           revision,
           selection: [],
           contextMenu: null,
+          fieldCursors: [],
         };
       }),
   };

@@ -77,23 +77,23 @@ export function toggleRef(selection: Selection, ref: ComponentRef): Selection {
 export function newSecondary(start: Point, end: Point): SecondarySchema {
   return {
     material: 'copper',
-    turn_fxn: { kind: 'uniform', total_turns: 800, t_min: 0, t_max: 1 },
+    turn_fxn: { kind: 'uniform', total_turns: 895, t_min: 0, t_max: 1 },
     start,
     end,
-    wire_dia: 0.02,
+    wire_dia: 0.000508, // 0.02 in
   };
 }
 
 export function newPrimary(start: Point, end: Point): PrimarySchema {
   return {
     material: 'copper',
-    turn_fxn: { kind: 'uniform', total_turns: 8, t_min: 0, t_max: 1 },
-    cross_section: { kind: 'circular', diameter: 0.25 },
+    turn_fxn: { kind: 'uniform', total_turns: 8.438, t_min: 0, t_max: 1 },
+    cross_section: { kind: 'circular', diameter: 0.00635 }, // 0.25 in
     start,
     end,
-    tank_capacitance: 1.88e-8,
-    lead_length: 30,
-    lead_dia: 0.2,
+    tank_capacitance: 1.88e-8, // absolute farads (never scaled by unit_scale)
+    lead_length: 0.762, // 30 in
+    lead_dia: 0.00508, // 0.2 in
   };
 }
 
@@ -112,18 +112,23 @@ export function newGround(center: Point, radius: number): GroundSchema {
 }
 
 // ---------------------------------------------------------------------------
-// Default coil — a simple starting point (inches)
+// Default coil — a simple starting point.
+//
+// All geometry is stored in SI base units (metres). The backend's `unit_scale`
+// (metres per coil unit) is therefore always 1 and never surfaced in the UI;
+// the frontend converts to/from the user's chosen display units. The values
+// below are the classic JavaTC example coil, whose inch dimensions are noted.
 // ---------------------------------------------------------------------------
 
 export function defaultCoil(): Coil {
   return {
-    secondary: newSecondary([2.27, 23], [2.27, 44.8]),
-    primary: newPrimary([3.75, 23], [7.97, 23]),
-    toploads: [newTopload([7.375, 48.8], 3.125)],
+    secondary: newSecondary([0.057658, 0.5842], [0.057658, 1.13792]), // [2.27,23]–[2.27,44.8] in
+    primary: newPrimary([0.09525, 0.5842], [0.202438, 0.5842]), // [3.75,23]–[7.97,23] in
+    toploads: [newTopload([0.187325, 1.23952], 0.079375)], // center [7.375,48.8] in, r 3.125 in
     grounds: [],
-    r_max: 100,
-    z_max: 150,
-    unit_scale: 0.0254,
+    r_max: 2.54, // 100 in
+    z_max: 3.81, // 150 in
+    unit_scale: 1,
     discretization_order: 30,
     bc_bottom: null,
     bc_top: null,
@@ -140,13 +145,13 @@ export function defaultCoil(): Coil {
  */
 export function blankCoil(): Coil {
   return {
-    secondary: newSecondary([2.27, 23], [2.27, 44.8]),
+    secondary: newSecondary([0.057658, 0.5842], [0.057658, 1.13792]),
     primary: null,
     toploads: [],
     grounds: [],
-    r_max: 100,
-    z_max: 150,
-    unit_scale: 0.0254,
+    r_max: 2.54,
+    z_max: 3.81,
+    unit_scale: 1,
     discretization_order: 30,
     bc_bottom: null,
     bc_top: null,

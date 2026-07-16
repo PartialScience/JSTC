@@ -8,13 +8,15 @@ import { Layer, Line, Rect, Stage, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 
-import type { CoilSchema } from '../api/client';
-import { useField } from '../api/simulation';
 import type { ComponentRef, Point, Tool } from '../domain/coil';
 import { isSelected } from '../domain/coil';
+import { CursorLayer } from '../field/CursorLayer';
+import { coordReadout } from '../field/fieldFormat';
 import { FieldLayer } from '../field/FieldLayer';
-import { FIELD_GRID_NR, FIELD_GRID_NZ, useEditorStore } from '../state/store';
+import { useEditorStore } from '../state/store';
 import type { HandleKind } from '../state/store';
+import { useViewField } from '../state/useViewField';
+import { resolveOutputPref } from '../units/units';
 import { useThemeColors } from '../theme';
 import { rectFromCorners } from './geometry';
 import { pointInSelection, refsInRect } from './selection';
@@ -106,6 +108,9 @@ function touchToStage(
 
 export function CoilCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
+  // The bottom-right (r, z) readout is updated imperatively (its own DOM node),
+  // so tracking the pointer never re-renders the Konva stage on every move.
+  const readoutRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 800, height: 600 });
   const [viewport, setViewport] = useState<Viewport | null>(null);
   // A single mouse gesture, resolved lazily. On press it is `idle`; on the
@@ -163,33 +168,13 @@ export function CoilCanvas() {
   const openContextMenu = useEditorStore((s) => s.openContextMenu);
   const closeContextMenu = useEditorStore((s) => s.closeContextMenu);
   const viewMode = useEditorStore((s) => s.viewMode);
-  const fieldDrive = useEditorStore((s) => s.fieldDrive);
   const fieldDisplay = useEditorStore((s) => s.fieldDisplay);
-  const bundle = useEditorStore((s) => s.bundle);
-  const analysis = useEditorStore((s) => s.analysis);
+  const fieldCursors = useEditorStore((s) => s.fieldCursors);
+  const moveFieldCursor = useEditorStore((s) => s.moveFieldCursor);
   const fieldMode = viewMode !== 'edit';
 
-  // Effective drive frequency: the user's value, or the lower split mode
-  // (falling back to the secondary resonance) when left at 0 ("auto").
-  const effectiveFreq =
-    fieldDrive.frequencyHz > 0
-      ? fieldDrive.frequencyHz
-      : (analysis?.coupled?.split_lower ?? analysis?.secondary.resonant_frequency ?? 0);
-
-  const fieldQuery = useField(
-    coil as unknown as CoilSchema,
-    bundle,
-    {
-      fieldType: viewMode === 'bfield' ? 'magnetic' : 'electric',
-      frequencyHz: effectiveFreq,
-      primaryCurrent: fieldDrive.primaryCurrent,
-      referenceMode: fieldDrive.referenceMode,
-      hotEnd: fieldDrive.hotEnd,
-      gridNr: FIELD_GRID_NR,
-      gridNz: FIELD_GRID_NZ,
-    },
-    fieldMode,
-  );
+  // Shared with the field sidebar (same query key → one fetch).
+  const fieldQuery = useViewField();
 
   // Track container size.
   useLayoutEffect(() => {
@@ -226,6 +211,25 @@ export function CoilCanvas() {
     },
     [vp],
   );
+
+  // Live "(r, z) = …" readout at the pointer. Physical r is |world x| (the view
+  // is a mirrored cross-section); coordinates follow the length unit preference
+  // like every other length in the app.
+  const showReadout = useCallback(
+    (sx: number, sy: number) => {
+      const el = readoutRef.current;
+      if (!el) return;
+      const [x, z] = fromScreen(sx, sy);
+      const pref = resolveOutputPref(useEditorStore.getState().unitPrefs, 'field-coord', 'length');
+      el.textContent = coordReadout(Math.abs(x), z, pref);
+      el.style.opacity = '1';
+    },
+    [fromScreen],
+  );
+  const hideReadout = useCallback(() => {
+    const el = readoutRef.current;
+    if (el) el.style.opacity = '0';
+  }, []);
 
   // Expose a tiny transform API for Playwright to compute handle coordinates.
   useEffect(() => {
@@ -353,9 +357,12 @@ export function CoilCanvas() {
     const pos = stage?.getPointerPosition();
     if (!pos) return;
 
-    // Field views are pan/zoom only; any left/middle press pans.
+    // Field views are pan/zoom only; any left/middle press pans — except a
+    // press on a draggable cursor dot, which Konva drives as a drag.
     if (fieldMode) {
-      if (e.evt.button === 0 || e.evt.button === 1) {
+      const node = e.target;
+      const onCursor = typeof node.draggable === 'function' && node.draggable();
+      if (!onCursor && (e.evt.button === 0 || e.evt.button === 1)) {
         beginGesture(pos, null, false, 'pan');
         e.evt.preventDefault();
       }
@@ -375,11 +382,12 @@ export function CoilCanvas() {
   };
 
   const onMouseMove = (e: KonvaEventObject<MouseEvent>) => {
-    const g = gesture.current;
-    if (!g) return;
     const stage = e.target.getStage();
     const pos = stage?.getPointerPosition();
-    if (!pos) return;
+    if (pos) showReadout(pos.x, pos.y);
+
+    const g = gesture.current;
+    if (!g || !pos) return;
 
     // Resolve the drag intent on the first move past the click threshold.
     if (g.mode === 'idle') {
@@ -556,6 +564,7 @@ export function CoilCanvas() {
     const t = touches[0];
     if (!t) return;
     const p = touchToStage(stage, t);
+    showReadout(p.x, p.y);
     const dragged =
       st.startPos && Math.hypot(p.x - st.startPos.x, p.y - st.startPos.y) > TOUCH_TAP_SLOP;
 
@@ -591,6 +600,9 @@ export function CoilCanvas() {
 
     // Still pinching (a finger lifted but at least two remain).
     if (remaining.length >= 2) return;
+
+    // No finger left on the glass → drop the coordinate readout.
+    if (remaining.length === 0) hideReadout();
 
     // Dropped from two fingers to one: continue as a pan with the finger left
     // on the glass (and never treat the lift as a tap).
@@ -678,9 +690,11 @@ export function CoilCanvas() {
     <div
       ref={containerRef}
       data-testid="coil-canvas"
+      onMouseLeave={hideReadout}
       style={{
         width: '100%',
         height: '100%',
+        position: 'relative',
         background: colors.canvasBg,
         cursor: spaceHeld ? 'grab' : fieldMode || tool === 'pan' ? 'default' : 'crosshair',
         // Own every touch gesture: without this the browser would scroll/zoom
@@ -848,7 +862,25 @@ export function CoilCanvas() {
             />
           )}
         </Layer>
+
+        {/* Probe cursors: interactive, above the heatmap and dimmed geometry. */}
+        {fieldMode && (
+          <Layer>
+            <CursorLayer
+              cursors={fieldCursors}
+              field={fieldQuery.data ?? null}
+              fieldType={viewMode === 'bfield' ? 'magnetic' : 'electric'}
+              showArrows={fieldDisplay.showArrows}
+              toScreen={toScreen}
+              fromScreen={fromScreen}
+              onMove={moveFieldCursor}
+            />
+          </Layer>
+        )}
       </Stage>
+
+      {/* Live pointer coordinate readout (updated imperatively; hidden at rest). */}
+      <div ref={readoutRef} className="coord-readout" aria-hidden="true" />
     </div>
   );
 }

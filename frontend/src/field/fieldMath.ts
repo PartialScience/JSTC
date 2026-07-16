@@ -12,6 +12,8 @@
  * mask are NaN and propagate NaN into any derivative that touches them.
  */
 
+import type { FieldResponse } from '../api/client';
+
 export interface FieldData {
   nr: number;
   nz: number;
@@ -27,7 +29,26 @@ export interface FieldData {
   unitScale: number;
 }
 
+/** Adapt an API field response to the client-side grid view. */
+export function fieldDataFromResponse(resp: FieldResponse): FieldData {
+  return {
+    nr: resp.nr,
+    nz: resp.nz,
+    real: resp.real,
+    imag: resp.imag,
+    mask: resp.mask,
+    rMin: resp.r_min,
+    rMax: resp.r_max,
+    zMin: resp.z_min,
+    zMax: resp.z_max,
+    unitScale: resp.unit_scale,
+  };
+}
+
 const idx = (nr: number, iz: number, ir: number) => iz * nr + ir;
+
+/** Row-major flat index into an nr×nz grid (z outer, r inner). */
+export const idxOf = idx;
 
 /** Complex magnitude |field| per cell (NaN where masked). */
 export function magnitudeMap(f: FieldData): Float64Array {
@@ -39,7 +60,7 @@ export function magnitudeMap(f: FieldData): Float64Array {
 }
 
 /** Metre spacings of the grid (world spacing * unitScale). */
-function spacings(f: FieldData): { dr: number; dz: number } {
+export function spacings(f: FieldData): { dr: number; dz: number } {
   return {
     dr: ((f.rMax - f.rMin) / (f.nr - 1)) * f.unitScale,
     dz: ((f.zMax - f.zMin) / (f.nz - 1)) * f.unitScale,
@@ -49,7 +70,7 @@ function spacings(f: FieldData): { dr: number; dz: number } {
 /** Central-difference complex partial derivatives at (iz, ir). Returns the
  *  four scalars d/dr and d/dz of the real and imaginary parts, or null if
  *  any needed neighbor is out of range or masked. */
-function complexGrads(
+export function complexGrads(
   f: FieldData,
   iz: number,
   ir: number,
@@ -68,6 +89,49 @@ function complexGrads(
     drIm: (f.imag[e]! - f.imag[w]!) / (2 * dr),
     dzRe: (f.real[n]! - f.real[s]!) / (2 * dz),
     dzIm: (f.imag[n]! - f.imag[s]!) / (2 * dz),
+  };
+}
+
+/**
+ * Display phase reference. The solved field is a complex phasor whose absolute
+ * phase is the solver's arbitrary reference (the primary drive current); near
+ * resonance the hot topload lags it ~90°, so the raw real part ("phase 0") is a
+ * near-meaningless instant and E = -grad(Re phi) can point the wrong way.
+ *
+ * We instead rotate the whole field so the highest-|value| node (the hot
+ * conductor) sits at its positive real peak, and display Re[field * e^{i θ}] at
+ * that instant. This USES the imaginary part rather than discarding it, is
+ * deterministic (independent of the solver's phase), and makes E = -grad phi
+ * point away from the positively-charged topload. Returns cos/sin of θ so a
+ * displayed value is `re*cos - im*sin`.
+ */
+export function referencePhase(f: FieldData): { cos: number; sin: number } {
+  let bestMag = 0;
+  let re = 1;
+  let im = 0;
+  for (let i = 0; i < f.real.length; i++) {
+    if (!f.mask[i]) continue;
+    const m = Math.hypot(f.real[i]!, f.imag[i]!);
+    if (m > bestMag) {
+      bestMag = m;
+      re = f.real[i]!;
+      im = f.imag[i]!;
+    }
+  }
+  // θ = -arg(φ_ref): then Re[φ_ref·e^{iθ}] = |φ_ref| > 0.
+  if (bestMag === 0) return { cos: 1, sin: 0 };
+  return { cos: re / bestMag, sin: -im / bestMag };
+}
+
+/** Instantaneous (display-phase) partial derivatives from the complex gradient:
+ *  Re[∂φ · e^{iθ}] for each of ∂/∂r and ∂/∂z. */
+export function rotatedPartials(
+  g: { drRe: number; drIm: number; dzRe: number; dzIm: number },
+  phase: { cos: number; sin: number },
+): { dr: number; dz: number } {
+  return {
+    dr: g.drRe * phase.cos - g.drIm * phase.sin,
+    dz: g.dzRe * phase.cos - g.dzIm * phase.sin,
   };
 }
 
@@ -193,12 +257,13 @@ export interface Arrow {
 }
 
 /**
- * A sparse grid of normalized field-direction arrows, using the real part
- * (the instantaneous field at t=0). `kind` selects E (-grad phi) or B
- * (curl A_phi). `step` samples every `step`-th cell.
+ * A sparse grid of normalized field-direction arrows at the display phase (the
+ * "peak field" instant — see `referencePhase`). `kind` selects E (-grad phi) or
+ * B (curl A_phi). `step` samples every `step`-th cell.
  */
 export function sampleArrows(f: FieldData, kind: 'E' | 'B', step: number): Arrow[] {
   const { dr, dz } = spacings(f);
+  const phase = referencePhase(f);
   const arrows: Arrow[] = [];
   const worldR = (ir: number) => f.rMin + ((f.rMax - f.rMin) * ir) / (f.nr - 1);
   const worldZ = (iz: number) => f.zMin + ((f.zMax - f.zMin) * iz) / (f.nz - 1);
@@ -206,16 +271,18 @@ export function sampleArrows(f: FieldData, kind: 'E' | 'B', step: number): Arrow
     for (let ir = step; ir < f.nr - step; ir += step) {
       const g = complexGrads(f, iz, ir, dr, dz);
       if (!g) continue;
+      const p = rotatedPartials(g, phase);
       let vr: number;
       let vz: number;
       if (kind === 'E') {
-        vr = -g.drRe;
-        vz = -g.dzRe;
+        vr = -p.dr;
+        vz = -p.dz;
       } else {
         const c = idx(f.nr, iz, ir);
         const r = worldR(ir) * f.unitScale;
-        vr = -g.dzRe;
-        vz = g.drRe + (r > 1e-12 ? f.real[c]! / r : 0);
+        const aRot = f.real[c]! * phase.cos - f.imag[c]! * phase.sin;
+        vr = -p.dz;
+        vz = p.dr + (r > 1e-12 ? aRot / r : 0);
       }
       const mag = Math.hypot(vr, vz);
       if (mag < 1e-30) continue;

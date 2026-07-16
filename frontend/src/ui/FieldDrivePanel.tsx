@@ -4,7 +4,8 @@
  * the component parameter panel while a field is on screen.
  */
 import { useEditorStore } from '../state/store';
-import { NumberField, SelectField } from './fields';
+import { CursorList } from './CursorPanel';
+import { QuantityField, SelectField } from './fields';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -42,9 +43,12 @@ export function FieldDrivePanel() {
       <h2 className="sidebar-title">{isElectric ? 'E-field' : 'B-field'} drive</h2>
 
       <Section title="Operating point">
-        <NumberField
-          label="frequency (Hz)"
-          value={Math.round(effective)}
+        <QuantityField
+          label="frequency"
+          kind="frequency"
+          fieldId="drive-frequency"
+          defaultUnit="kHz"
+          value={effective}
           min={0}
           onCommit={(hz) => setDrive({ frequencyHz: Math.max(0, hz) })}
           testId="drive-frequency"
@@ -64,8 +68,10 @@ export function FieldDrivePanel() {
             ))}
           </div>
         )}
-        <NumberField
-          label="primary current (A)"
+        <QuantityField
+          label="primary current"
+          kind="current"
+          fieldId="drive-current"
           value={drive.primaryCurrent}
           min={0}
           onCommit={(primaryCurrent) => setDrive({ primaryCurrent })}
@@ -122,6 +128,10 @@ export function FieldDrivePanel() {
           />
           field vectors
         </label>
+      </Section>
+
+      <Section title="Cursors">
+        <CursorList />
       </Section>
     </div>
   );

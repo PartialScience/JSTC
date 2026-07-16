@@ -26,86 +26,222 @@ import type {
   SecondaryOutputs,
 } from '../api/client';
 import { useImpedance, useSpice } from '../api/simulation';
+import { useEditorStore } from '../state/store';
 import { useThemeColors } from '../theme';
+import {
+  outputParts,
+  outputUnitChoices,
+  resolveOutputPref,
+  type OutputUnitPref,
+  type QuantityKind,
+} from '../units/units';
 import { EigenModesChart } from './EigenModes';
 import { MatrixViewer } from './MatrixViewer';
-import { eng, hz } from './format';
+import { eng } from './format';
 
 // A field descriptor: how to pull a scalar out of an outputs object and
-// format it. `get` may return null/undefined (value not available).
+// format it. `get` may return null/undefined (value not available). A field
+// either carries a physical `kind` (formatted via the unit preferences, with a
+// clickable unit) or a bespoke `fmt` (dimensionless: Q, k, %, °, turns/length).
 interface Field<T> {
   label: string;
   get: (o: T) => number | null | undefined;
-  fmt: (v: number) => string;
+  kind?: QuantityKind;
+  fmt?: (v: number) => string;
   testId?: string;
 }
 
-const H = (v: number) => hz(v);
-const U = (unit: string) => (v: number) => eng(v, unit);
 const num = (digits: number, suffix = '') => (v: number) =>
   `${v.toFixed(digits)}${suffix}`;
 
 const SECONDARY_FIELDS: Field<SecondaryOutputs>[] = [
-  { label: 'Resonant frequency', get: (o) => o.resonant_frequency, fmt: H, testId: 'res-fres' },
-  { label: '2nd Harmonic', get: (o) => o.eigen_frequencies?.[1], fmt: H },
-  { label: '3rd Harmonic', get: (o) => o.eigen_frequencies?.[2], fmt: H },
-  { label: 'Les (series L)', get: (o) => o.effective_series_inductance, fmt: U('H') },
-  { label: 'Lee (energy L)', get: (o) => o.energy_inductance, fmt: U('H') },
-  { label: 'Ldc', get: (o) => o.dc_inductance, fmt: U('H') },
-  { label: 'Ces (shunt C)', get: (o) => o.effective_shunt_capacitance, fmt: U('F') },
-  { label: 'Cee (energy C)', get: (o) => o.energy_capacitance, fmt: U('F') },
-  { label: 'Cdc', get: (o) => o.dc_capacitance, fmt: U('F') },
-  { label: 'Topload C', get: (o) => o.topload_effective_capacitance, fmt: U('F') },
-  { label: 'Reactance @ res', get: (o) => o.reactance_at_resonance, fmt: U('Ω') },
-  { label: 'DC resistance', get: (o) => o.dc_resistance, fmt: U('Ω') },
-  { label: 'AC resistance', get: (o) => o.ac_resistance, fmt: U('Ω') },
+  { label: 'Resonant frequency', get: (o) => o.resonant_frequency, kind: 'frequency', testId: 'res-fres' },
+  { label: '2nd Harmonic', get: (o) => o.eigen_frequencies?.[1], kind: 'frequency' },
+  { label: '3rd Harmonic', get: (o) => o.eigen_frequencies?.[2], kind: 'frequency' },
+  { label: 'Les (series L)', get: (o) => o.effective_series_inductance, kind: 'inductance' },
+  { label: 'Lee (energy L)', get: (o) => o.energy_inductance, kind: 'inductance' },
+  { label: 'Ldc', get: (o) => o.dc_inductance, kind: 'inductance' },
+  { label: 'Ces (shunt C)', get: (o) => o.effective_shunt_capacitance, kind: 'capacitance' },
+  { label: 'Cee (energy C)', get: (o) => o.energy_capacitance, kind: 'capacitance' },
+  { label: 'Cdc', get: (o) => o.dc_capacitance, kind: 'capacitance' },
+  { label: 'Topload C', get: (o) => o.topload_effective_capacitance, kind: 'capacitance' },
+  { label: 'Reactance @ res', get: (o) => o.reactance_at_resonance, kind: 'resistance' },
+  { label: 'DC resistance', get: (o) => o.dc_resistance, kind: 'resistance' },
+  { label: 'AC resistance', get: (o) => o.ac_resistance, kind: 'resistance' },
   { label: 'Q factor', get: (o) => o.quality_factor, fmt: num(0) },
-  { label: 'Skin depth', get: (o) => o.skin_depth, fmt: U('m') },
-  { label: 'Winding length', get: (o) => o.winding_length, fmt: U('m') },
-  { label: 'Wire length', get: (o) => o.conductor_length, fmt: U('m') },
-  { label: 'Coil pitch', get: (o) => o.coil_pitch, fmt: U('m') },
+  { label: 'Skin depth', get: (o) => o.skin_depth, kind: 'length' },
+  { label: 'Winding length', get: (o) => o.winding_length, kind: 'length' },
+  { label: 'Wire length', get: (o) => o.conductor_length, kind: 'length' },
+  { label: 'Coil pitch', get: (o) => o.coil_pitch, kind: 'length' },
   { label: 'Turns / length', get: (o) => o.turns_per_length, fmt: num(0, ' /m') },
-  { label: 'Turn spacing', get: (o) => o.turn_spacing, fmt: U('m') },
-  { label: 'Mean diameter', get: (o) => o.mean_diameter, fmt: U('m') },
+  { label: 'Turn spacing', get: (o) => o.turn_spacing, kind: 'length' },
+  { label: 'Mean diameter', get: (o) => o.mean_diameter, kind: 'length' },
   { label: 'H/D aspect', get: (o) => o.aspect_ratio, fmt: num(2) },
   { label: 'Inclination', get: (o) => o.inclination_degrees, fmt: num(0, '°') },
-  { label: 'Wire weight', get: (o) => o.wire_weight, fmt: U('kg') },
+  { label: 'Wire weight', get: (o) => o.wire_weight, kind: 'mass' },
 ];
 
 const PRIMARY_FIELDS: Field<PrimaryOutputs>[] = [
-  { label: 'Resonant frequency', get: (o) => o.resonant_frequency, fmt: H, testId: 'res-pfres' },
-  { label: 'Ldc (winding)', get: (o) => o.dc_inductance, fmt: U('H') },
-  { label: 'Lead inductance', get: (o) => o.lead_inductance, fmt: U('H') },
-  { label: 'Total inductance', get: (o) => o.total_inductance, fmt: U('H') },
+  { label: 'Resonant frequency', get: (o) => o.resonant_frequency, kind: 'frequency', testId: 'res-pfres' },
+  { label: 'Ldc (winding)', get: (o) => o.dc_inductance, kind: 'inductance' },
+  { label: 'Lead inductance', get: (o) => o.lead_inductance, kind: 'inductance' },
+  { label: 'Total inductance', get: (o) => o.total_inductance, kind: 'inductance' },
   { label: 'Detuned', get: (o) => o.percent_detuned, fmt: num(1, ' %') },
-  { label: 'Wire length', get: (o) => o.wire_length, fmt: U('m') },
-  { label: 'Coil pitch', get: (o) => o.coil_pitch, fmt: U('m') },
-  { label: 'Turn spacing', get: (o) => o.turn_spacing, fmt: U('m') },
-  { label: 'DC resistance', get: (o) => o.dc_resistance, fmt: U('Ω') },
+  { label: 'Wire length', get: (o) => o.wire_length, kind: 'length' },
+  { label: 'Coil pitch', get: (o) => o.coil_pitch, kind: 'length' },
+  { label: 'Turn spacing', get: (o) => o.turn_spacing, kind: 'length' },
+  { label: 'DC resistance', get: (o) => o.dc_resistance, kind: 'resistance' },
 ];
 
 const COUPLING_FIELDS: Field<CouplingOutputs>[] = [
   { label: 'k (coupling)', get: (o) => o.coupling_coefficient, fmt: num(3), testId: 'res-k' },
-  { label: 'Lm (mutual)', get: (o) => o.mutual_inductance, fmt: U('H') },
+  { label: 'Lm (mutual)', get: (o) => o.mutual_inductance, kind: 'inductance' },
   { label: 'Transfer half-cycles', get: (o) => o.half_cycles_for_energy_transfer, fmt: num(1) },
-  { label: 'Transfer time', get: (o) => o.energy_transfer_time, fmt: U('s') },
+  { label: 'Transfer time', get: (o) => o.energy_transfer_time, kind: 'time' },
 ];
 
 const COUPLED_FIELDS: Field<CoupledOutputs>[] = [
-  { label: 'Lower mode', get: (o) => o.split_lower, fmt: H, testId: 'res-split-lower' },
-  { label: 'Upper mode', get: (o) => o.split_upper, fmt: H, testId: 'res-split-upper' },
-  { label: 'Frequency split', get: (o) => o.frequency_split, fmt: H },
+  { label: 'Lower mode', get: (o) => o.split_lower, kind: 'frequency', testId: 'res-split-lower' },
+  { label: 'Upper mode', get: (o) => o.split_upper, kind: 'frequency', testId: 'res-split-upper' },
+  { label: 'Frequency split', get: (o) => o.frequency_split, kind: 'frequency' },
 ];
 
-function Stat<T>({ field, data }: { field: Field<T>; data: T | null | undefined }) {
+/** The clickable unit on an output value: opens a small menu to pin the display
+ *  unit for this one value (each result value is independently unit-able). */
+function OutputUnit({
+  fieldId,
+  kind,
+  pref,
+  label,
+}: {
+  fieldId: string;
+  kind: QuantityKind;
+  pref: OutputUnitPref;
+  label: string;
+}) {
+  const setOutputUnit = useEditorStore((s) => s.setOutputUnit);
+  const [open, setOpen] = useState(false);
+  const choices = outputUnitChoices(kind);
+
+  return (
+    <span className="unit-picker">
+      <button
+        type="button"
+        className="unit-btn"
+        title="Change unit"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {label}
+      </button>
+      {open && (
+        <>
+          <div className="dropdown-backdrop" onClick={() => setOpen(false)} />
+          <div className="dropdown-menu unit-menu" role="menu">
+            {choices.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                role="menuitemradio"
+                aria-checked={pref === c.value}
+                className="dropdown-item"
+                onClick={() => {
+                  setOutputUnit(fieldId, c.value);
+                  setOpen(false);
+                }}
+              >
+                <span className="check">{pref === c.value ? '✓' : ''}</span>
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
+/** The formatted value + clickable unit for a physical output. Reads this
+ *  value's own display preference (falling back to the system baseline). */
+function UnitValue({
+  value,
+  kind,
+  fieldId,
+  testId,
+}: {
+  value: number;
+  kind: QuantityKind;
+  fieldId: string;
+  testId?: string;
+}) {
+  const pref: OutputUnitPref = useEditorStore((s) => resolveOutputPref(s.unitPrefs, fieldId, kind));
+  const parts = outputParts(value, kind, pref);
+  return (
+    <span className="stat-value" data-testid={testId}>
+      {parts.value}{' '}
+      {parts.unit && <OutputUnit fieldId={fieldId} kind={kind} pref={pref} label={parts.unit} />}
+    </span>
+  );
+}
+
+/** Global Imperial / SI output-unit presets. SI puts every kind on automatic
+ *  engineering-prefixed SI; Imperial switches lengths (mil/in/ft) and mass (lb)
+ *  to imperial and leaves the electrical kinds on SI (they have no imperial
+ *  form). These affect the displayed outputs only, not the input fields. */
+function UnitSystemButtons() {
+  const system = useEditorStore((s) => s.unitPrefs.system);
+  const setUnitSystem = useEditorStore((s) => s.setUnitSystem);
+  const isSI = system === 'SI';
+  const isImperial = system === 'imperial';
+
+  return (
+    <div className="unit-system" role="group" aria-label="Output units">
+      <button
+        type="button"
+        className={isSI ? 'unit-system-btn active' : 'unit-system-btn'}
+        data-testid="units-si"
+        aria-pressed={isSI}
+        title="Show all outputs in SI units"
+        onClick={() => setUnitSystem('SI')}
+      >
+        SI
+      </button>
+      <button
+        type="button"
+        className={isImperial ? 'unit-system-btn active' : 'unit-system-btn'}
+        data-testid="units-imperial"
+        aria-pressed={isImperial}
+        title="Show lengths and mass in imperial units"
+        onClick={() => setUnitSystem('imperial')}
+      >
+        Imperial
+      </button>
+    </div>
+  );
+}
+
+function Stat<T>({
+  field,
+  data,
+  fieldId,
+}: {
+  field: Field<T>;
+  data: T | null | undefined;
+  fieldId: string;
+}) {
   const value = data == null ? null : field.get(data);
-  const shown = value == null || !Number.isFinite(value) ? '—' : field.fmt(value);
+  const available = value != null && Number.isFinite(value);
   return (
     <div className="stat">
       <div className="stat-label">{field.label}</div>
-      <div className="stat-value" data-testid={field.testId}>
-        {shown}
-      </div>
+      {available && field.kind ? (
+        <UnitValue value={value} kind={field.kind} fieldId={fieldId} testId={field.testId} />
+      ) : (
+        <div className="stat-value" data-testid={field.testId}>
+          {available ? (field.fmt ? field.fmt(value) : String(value)) : '—'}
+        </div>
+      )}
     </div>
   );
 }
@@ -124,7 +260,9 @@ function Card<T>({
       <h3>{title}</h3>
       <div className="stat-grid">
         {fields.map((f) => (
-          <Stat key={f.label} field={f} data={data} />
+          // Field id is stable per value (card + label) so each result value
+          // remembers its own unit independently.
+          <Stat key={f.label} field={f} data={data} fieldId={`${title}.${f.label}`} />
         ))}
       </div>
     </div>
@@ -403,10 +541,10 @@ function errorMessage(error: unknown): string {
   // openapi-fetch throws a TypeError('Failed to fetch') when the backend
   // is unreachable (proxy ECONNREFUSED).
   if (/failed to fetch|networkerror|load failed/i.test(raw)) {
-    return 'Cannot reach the backend. Is the API running on :8000? (start it with `npm run dev`, and wait for "Application startup complete")';
+    return 'Cannot reach the server. Please check your connection and try again.';
   }
   if (/HTTP 5\d\d/.test(raw)) {
-    return 'The backend returned an error. Check the API logs in your terminal for the traceback.';
+    return 'The server encountered an error while processing this request. Please try again in a moment.';
   }
   return raw;
 }
@@ -470,6 +608,7 @@ export function Results({
         >
           {isFetching ? 'Running…' : 'Run calculations'}
         </button>
+        <UnitSystemButtons />
       </div>
 
       {isError && (

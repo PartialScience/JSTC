@@ -69,10 +69,24 @@ body {
 }
 
 .topbar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: var(--accent);
-  font-size: 14px;
+  font-size: 21px;
+}
+
+/* The mark takes the brand's color via currentColor. A mask (rather than <img>)
+ * lets it inherit the color and keeps the notch cut-outs transparent. */
+.topbar-brand-mark {
+  width: 1.6em;
+  height: 1.6em;
+  flex: none;
+  background-color: currentColor;
+  -webkit-mask: url(/jstc-icon.svg) center / contain no-repeat;
+  mask: url(/jstc-icon.svg) center / contain no-repeat;
 }
 
 .topbar-group {
@@ -92,6 +106,29 @@ body {
 }
 .topbar-btn:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+/* Sits at the far right of the bar; `margin-left: auto` claims the gap between
+ * the tool group and the edge. Icon-only and muted so it reads as a secondary
+ * "about" affordance, not another action button. */
+.topbar-github {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  color: var(--muted);
+  opacity: 0.85;
+}
+.topbar-github:hover {
+  color: var(--accent);
+  opacity: 1;
+}
+.topbar-github:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .topbar-notice {
@@ -865,6 +902,16 @@ button[data-testid='spice-export'] {
     flex-wrap: wrap;
   }
 
+  /* Keep the GitHub icon on the brand's row (top-right) rather than letting it
+   * wrap onto a line of its own. The action group drops to its own full-width
+   * row below, so brand + icon are the only two items sharing the first line
+   * and `margin-left: auto` still pins the icon to the right edge. */
+  .topbar-group {
+    order: 1;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+  }
+
   /* Canvas + toolbar ride above the sidebar (DOM order is sidebar-first). */
   .canvas-column {
     order: -1;
@@ -1006,4 +1053,281 @@ button[data-testid='spice-export'] {
 }
 .checkbox-row input {
   width: auto;
+}
+
+/* Live pointer coordinate readout, pinned bottom-right of the canvas. Updated
+ * imperatively and faded in only while the pointer is over the view. */
+.coord-readout {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  white-space: nowrap;
+}
+
+/* --- Field probe cursors (sidebar) ---------------------------------------- */
+.cursor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cursor-add {
+  width: 100%;
+  background: none;
+  border: 1px dashed var(--border-strong);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cursor-add:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.cursor-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cursor-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.cursor-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The dot's white ring + dark halo mirror the on-canvas point, so the colour
+ * reads on any panel background and matches the point it names. */
+.cursor-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: none;
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.cursor-name {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.cursor-remove {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  cursor: pointer;
+  flex: none;
+}
+.cursor-remove:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.cursor-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Each value row is a click-to-copy target. The "copy" hint appears on hover
+ * (and always, faintly, on touch) so the interaction is discoverable without a
+ * standing button. */
+.cursor-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  color: var(--text);
+  text-align: left;
+  padding: 5px 8px;
+  cursor: pointer;
+  font: inherit;
+}
+.cursor-rows .cursor-row:first-child {
+  border-top: none;
+}
+.cursor-row:hover:not(:disabled) {
+  background: var(--panel-alt);
+}
+.cursor-row:disabled {
+  cursor: default;
+}
+.cursor-row-label {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.cursor-row-value {
+  min-width: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.cursor-row-hint {
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.1s;
+  white-space: nowrap;
+}
+.cursor-row:hover:not(:disabled) .cursor-row-hint {
+  opacity: 0.7;
+}
+.cursor-row.copied .cursor-row-hint {
+  opacity: 1;
+  color: var(--accent);
+}
+
+@media (pointer: coarse) {
+  .cursor-row {
+    padding: 9px 8px;
+  }
+  .cursor-row-hint {
+    opacity: 0.45;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Units: input adornment + inline validation, output unit picker,    */
+/* global Imperial/SI toggle, matrix unit selector.                    */
+/* ------------------------------------------------------------------ */
+
+/* An input carrying a physical unit: the unit sits as an adornment on the
+ * right, inside the field border. */
+.quantity-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.quantity-input input {
+  padding-right: 34px; /* room for the unit adornment */
+}
+.quantity-unit {
+  position: absolute;
+  right: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Inline validation: a subtle red outline on the box and a short message. */
+.field-invalid .quantity-input input {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+.field-error {
+  color: var(--danger);
+  font-size: 11px;
+}
+
+/* Output unit: the unit next to a result value is a click target that opens a
+ * small menu to pin the display unit for that quantity. */
+.unit-picker {
+  position: relative;
+  display: inline-block;
+}
+.unit-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8em;
+  padding: 0 1px;
+  cursor: pointer;
+  border-bottom: 1px dotted var(--muted);
+  line-height: 1;
+}
+.unit-btn:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.unit-menu {
+  min-width: 120px;
+}
+
+/* Global Imperial / SI output-unit toggle in the results header. */
+.unit-system {
+  display: inline-flex;
+  margin-left: auto; /* push to the right edge of the header */
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.unit-system-btn {
+  background: var(--panel-alt);
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.unit-system-btn:first-child {
+  border-left: none;
+}
+.unit-system-btn:hover {
+  border-color: var(--accent);
+}
+.unit-system-btn.active {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+/* Matrix unit selector sits between the caption and the CSV button. */
+.matrix-unit {
+  flex: none;
+}
+.matrix-unit select {
+  width: auto;
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

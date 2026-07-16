@@ -16,6 +16,23 @@ test.beforeEach(async ({ page }) => {
   await installMockApi(page);
 });
 
+/** Set a QuantityField value robustly. The field carries the unit inline while
+ *  focused ("0.02 in"), so a bare fill() races the focus-reformat and appends;
+ *  select-all then type replaces cleanly, and blur settles it to the number. */
+async function setQuantity(
+  page: import('@playwright/test').Page,
+  testId: string,
+  value: string,
+) {
+  const field = page.getByTestId(testId);
+  await field.click();
+  await field.press('ControlOrMeta+a');
+  // Insert the whole value as ONE input event (not per keystroke), so it is a
+  // single committed edit — otherwise each character is its own undo step.
+  await page.keyboard.insertText(value);
+  await field.blur();
+}
+
 test('loads the editor with sidebar, toolbar and canvas', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('sidebar')).toBeVisible();
@@ -52,7 +69,7 @@ test('editing after a run marks results stale until re-run', async ({ page }) =>
   await page.getByTestId('run').click();
   await expect(page.getByTestId('results-status')).toHaveText('up to date');
 
-  await page.getByTestId('sec-wire-dia').fill('0.05');
+  await setQuantity(page, 'sec-wire-dia', '0.05');
   await expect(page.getByTestId('results-status')).toHaveText('stale — geometry changed');
 
   await page.getByTestId('run').click();
@@ -103,7 +120,7 @@ test('dragging the secondary end handle updates the sidebar value', async ({ pag
 
   const box = (await page.getByTestId('coil-canvas').boundingBox())!;
   const screen = await page.evaluate(
-    ([r, z]) => window.__editor!.worldToScreen(r, z),
+    ([r, z]) => window.__editor!.worldToScreen(r * 0.0254, z * 0.0254),
     [endR, endZBefore] as [number, number],
   );
   await page.mouse.move(box.x + screen.x, box.y + screen.y);
@@ -120,7 +137,7 @@ test('undo reverts an edit (button and Ctrl+Z)', async ({ page }) => {
   const wire = page.getByTestId('sec-wire-dia');
   const original = await wire.inputValue();
 
-  await wire.fill('0.09');
+  await setQuantity(page, 'sec-wire-dia', '0.09');
   await expect(wire).toHaveValue('0.09');
 
   // Undo button reverts.
@@ -141,7 +158,7 @@ test('right-click opens a context menu; Edit selects the component', async ({ pa
   await page.goto('/');
   const box = (await page.getByTestId('coil-canvas').boundingBox())!;
   const screen = await page.evaluate(
-    ([r, z]) => window.__editor!.worldToScreen(r, z),
+    ([r, z]) => window.__editor!.worldToScreen(r * 0.0254, z * 0.0254),
     [7.375, 48.8] as [number, number],
   );
   await page.mouse.click(box.x + screen.x, box.y + screen.y, { button: 'right' });
@@ -160,7 +177,7 @@ test('full shape editing: convert a topload to a polygon and edit vertices', asy
   await expect(page.getByTestId('topload-0-v0-r')).toBeVisible();
 
   const before = await page.getByTestId('topload-0-v0-r').inputValue();
-  await page.getByTestId('topload-0-v0-r').fill('42');
+  await setQuantity(page, 'topload-0-v0-r', '42');
   await expect(page.getByTestId('topload-0-v0-r')).toHaveValue('42');
   expect(before).not.toBe('42');
 
@@ -179,7 +196,7 @@ test('dragging a polygon vertex handle updates the sidebar', async ({ page }) =>
   const z0 = Number(await page.getByTestId('topload-0-v0-z').inputValue());
   const box = (await page.getByTestId('coil-canvas').boundingBox())!;
   const screen = await page.evaluate(
-    ([r, z]) => window.__editor!.worldToScreen(r, z),
+    ([r, z]) => window.__editor!.worldToScreen(r * 0.0254, z * 0.0254),
     [r0Before, z0] as [number, number],
   );
   await page.mouse.move(box.x + screen.x, box.y + screen.y);
@@ -296,7 +313,7 @@ test('matrix pane: steps through matrices in a grid and exports CSV', async ({ p
   const downloadPromise = page.waitForEvent('download');
   await page.getByTestId('matrix-csv').click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('topload_charge.csv');
+  expect(download.suggestedFilename()).toBe('topload_charge_geometric.csv');
 });
 
 test('a backend error shows a helpful banner, not a silent failure', async ({ page }) => {
@@ -308,7 +325,7 @@ test('a backend error shows a helpful banner, not a silent failure', async ({ pa
   await page.goto('/');
   await page.getByTestId('run').click();
   await expect(page.getByTestId('error-banner')).toBeVisible();
-  await expect(page.getByTestId('error-banner')).toContainText('backend');
+  await expect(page.getByTestId('error-banner')).toContainText('server');
 });
 
 test('caching: a cheap edit reuses the bundle (no new matrices solve)', async ({ page }) => {
@@ -318,9 +335,10 @@ test('caching: a cheap edit reuses the bundle (no new matrices solve)', async ({
   await page.getByTestId('run').click();
   await expect(page.getByTestId('results-status')).toHaveText('up to date');
 
-  // Changing the unit scale is not a geometry change, so the bundle is
-  // reused: analyze runs again but no matrices solve is triggered.
-  await page.getByTestId('domain-unitscale').fill('0.0254001');
+  // Changing the material is not a geometry change (excluded from the mock's
+  // fingerprint), so the bundle is reused: analyze runs again but no matrices
+  // solve is triggered.
+  await page.getByTestId('sec-material').selectOption('aluminum');
   await page.getByTestId('run').click();
   await expect(page.getByTestId('results-status')).toHaveText('up to date');
 
@@ -337,7 +355,7 @@ test('caching: revisiting a geometry (undo) reuses its cached bundle', async ({ 
   await expect(page.getByTestId('results-status')).toHaveText('up to date');
 
   // Change geometry -> B, solve: a real geometry change fetches matrices.
-  await page.getByTestId('sec-wire-dia').fill('0.05');
+  await setQuantity(page, 'sec-wire-dia', '0.05');
   await page.getByTestId('run').click();
   await expect(page.getByTestId('results-status')).toHaveText('up to date');
   const matricesAfterB = stats.matrices;
@@ -396,6 +414,8 @@ test('changing the drive frequency refetches the field', async ({ page }) => {
   await expect.poll(() => stats.field).toBeGreaterThan(0);
 
   const before = stats.field;
-  await page.getByTestId('drive-frequency').fill('250000');
+  // Commit via the robust helper: a bare fill() races the field's focus-time
+  // unit reformat and can fail to commit (see setQuantity's note).
+  await setQuantity(page, 'drive-frequency', '250000');
   await expect.poll(() => stats.field).toBeGreaterThan(before);
 });

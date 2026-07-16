@@ -1,10 +1,28 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaultCoil } from '../domain/coil';
+import { newPrimary, newSecondary, newTopload, type Coil } from '../domain/coil';
 import { selectionMinR, translateComponents } from './move';
 
-// Default coil: secondary at r=2.27 (z 23→44.8), primary at r 3.75→7.97 (z 23),
-// one topload circle centered at (7.375, 48.8), radius 3.125.
+// A fixture coil with round, unit-agnostic coordinates (the classic example
+// coil's inch dimensions). Move/selection maths is scale-invariant, so this
+// keeps the test numbers readable and independent of the production defaults:
+// secondary at r=2.27 (z 23→44.8), primary at r 3.75→7.97 (z 23), one topload
+// circle centered at (7.375, 48.8), radius 3.125.
+function defaultCoil(): Coil {
+  return {
+    secondary: newSecondary([2.27, 23], [2.27, 44.8]),
+    primary: newPrimary([3.75, 23], [7.97, 23]),
+    toploads: [newTopload([7.375, 48.8], 3.125)],
+    grounds: [],
+    r_max: 100,
+    z_max: 150,
+    unit_scale: 1,
+    discretization_order: 30,
+    bc_bottom: null,
+    bc_top: null,
+    bc_right: null,
+  };
+}
 
 const circleCenter = (coil: ReturnType<typeof defaultCoil>, i: number) => {
   const shape = coil.toploads[i]!.shape;

@@ -15,28 +15,14 @@ import {
   bIntensityMap,
   contourSegments,
   eIntensityMap,
+  fieldDataFromResponse,
+  referencePhase,
   robustMax,
   sampleArrows,
-  type FieldData,
 } from './fieldMath';
 
 interface ToScreen {
   (x: number, z: number): { x: number; y: number };
-}
-
-function toFieldData(resp: FieldResponse): FieldData {
-  return {
-    nr: resp.nr,
-    nz: resp.nz,
-    real: resp.real,
-    imag: resp.imag,
-    mask: resp.mask,
-    rMin: resp.r_min,
-    rMax: resp.r_max,
-    zMin: resp.z_min,
-    zMax: resp.z_max,
-    unitScale: resp.unit_scale,
-  };
 }
 
 export function FieldLayer({
@@ -48,14 +34,16 @@ export function FieldLayer({
   toScreen: ToScreen;
   display: FieldDisplay;
 }) {
-  const f = useMemo(() => toFieldData(field), [field]);
+  const f = useMemo(() => fieldDataFromResponse(field), [field]);
 
   // The scalar we colour by, and its colour-scale max.
   const { scalar, vmax, potential } = useMemo(() => {
     if (display.colormap === 'potential') {
-      // Instantaneous (real-part) potential, signed -> diverging map.
+      // Signed potential at the display phase (the "peak field" instant, so the
+      // hot topload reads at its positive peak) -> diverging map.
+      const { cos, sin } = referencePhase(f);
       const s = new Float64Array(f.nr * f.nz);
-      for (let i = 0; i < s.length; i++) s[i] = f.mask[i] ? f.real[i]! : NaN;
+      for (let i = 0; i < s.length; i++) s[i] = f.mask[i] ? f.real[i]! * cos - f.imag[i]! * sin : NaN;
       const absVals = new Float64Array(s.length);
       for (let i = 0; i < s.length; i++) absVals[i] = Math.abs(s[i]!);
       return { scalar: s, vmax: robustMax(absVals), potential: true };
