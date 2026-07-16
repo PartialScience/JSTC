@@ -4,6 +4,7 @@ import {
   contourSegments,
   eIntensityMap,
   magnitudeMap,
+  referencePhase,
   robustMax,
   sampleArrows,
   type FieldData,
@@ -95,6 +96,39 @@ describe('sampleArrows', () => {
       expect(a.dz).toBeCloseTo(-1, 6);
       expect(Math.abs(a.dx)).toBeLessThan(1e-6);
       expect(Math.hypot(a.dx, a.dz)).toBeCloseTo(1, 6); // normalized
+    }
+  });
+});
+
+describe('referencePhase (display phase)', () => {
+  it('is the identity for a purely real field', () => {
+    const p = referencePhase(ramp(5, 5, (_r, z) => z));
+    expect(p.cos).toBeCloseTo(1, 12);
+    expect(p.sin).toBeCloseTo(0, 12);
+  });
+
+  it('recovers the physical field direction from a purely imaginary field', () => {
+    // φ = i·z: every bit of the field is in the imaginary part. The display
+    // phase must rotate it back so E = -∇φ points down (-z), exactly like φ = z
+    // — proving direction is phase-reference-independent, not "phase 0".
+    const nr = 10;
+    const nz = 10;
+    const real: number[] = [];
+    const imag: number[] = [];
+    const mask: boolean[] = [];
+    for (let iz = 0; iz < nz; iz++) {
+      for (let ir = 0; ir < nr; ir++) {
+        real.push(0);
+        imag.push((6 * iz) / (nz - 1));
+        mask.push(true);
+      }
+    }
+    const f: FieldData = { nr, nz, real, imag, mask, rMin: 0, rMax: 4, zMin: 0, zMax: 6, unitScale: 1 };
+    const arrows = sampleArrows(f, 'E', 3);
+    expect(arrows.length).toBeGreaterThan(0);
+    for (const a of arrows) {
+      expect(a.dz).toBeCloseTo(-1, 6);
+      expect(Math.abs(a.dx)).toBeLessThan(1e-6);
     }
   });
 });

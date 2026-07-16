@@ -414,6 +414,8 @@ test('changing the drive frequency refetches the field', async ({ page }) => {
   await expect.poll(() => stats.field).toBeGreaterThan(0);
 
   const before = stats.field;
-  await page.getByTestId('drive-frequency').fill('250000');
+  // Commit via the robust helper: a bare fill() races the field's focus-time
+  // unit reformat and can fail to commit (see setQuantity's note).
+  await setQuantity(page, 'drive-frequency', '250000');
   await expect.poll(() => stats.field).toBeGreaterThan(before);
 });
