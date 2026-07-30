@@ -14,9 +14,13 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
-    // Konva renders to a real <canvas>; chrome-headless-shell can crash on
-    // canvas/GL in this container, so disable the GPU and force software
-    // rendering. The suite runs under xvfb (see package.json test:e2e).
+    // Konva renders to a real <canvas>, and BOTH chromium headless builds
+    // (chrome-headless-shell and full chromium --headless) hang or crash the
+    // renderer on this canvas under software rasterization in this container.
+    // A HEADED chromium under a virtual X display is the configuration that
+    // works, so the canonical entry point is `npm run test:e2e`, which wraps
+    // `playwright test --headed` in xvfb-run. A bare `npx playwright test`
+    // (headless) is NOT supported here — it hangs on app boot.
     launchOptions: {
       args: ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'],
     },

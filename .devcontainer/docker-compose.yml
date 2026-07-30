@@ -16,6 +16,12 @@ services:
     # security_opt:
     #   - seccomp:unconfined
 
+    # Run an init (tini) as PID 1 so orphaned subprocesses get reaped. Without
+    # this, PID 1 is the bare `sleep infinity` below, which never calls wait():
+    # every browser subprocess orphaned by an interrupted e2e run then lingers
+    # as an unreapable zombie for the life of the container.
+    init: true
+
     # Overrides default command so things don't shut down after the process ends.
     command: sleep infinity
  
