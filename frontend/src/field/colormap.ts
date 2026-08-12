@@ -58,6 +58,55 @@ export function divergingColor(value: number, vmax: number): RGB {
   return sample(DIVERGING, t);
 }
 
+/** Decades of |field| the intensity ramp spans: values below vmax/DR read as
+ *  ~black, vmax reads as the ramp top, and the decades between share the ramp
+ *  evenly (log). Physical fields fall off over decades (|E| ~ 1/d² near a
+ *  conductor), so a linear ramp can never show near-surface structure and
+ *  far-field shape at once — this is what does. */
+export const INTENSITY_DECADES = 1000;
+/** Softer window for the signed potential (it falls off ~1/d). */
+export const POTENTIAL_DECADES = 100;
+
+/** Log-compress an unsigned field map into [0, 1] for the intensity ramp:
+ *  t = log(1 + v/floor)/log(1 + DR) with floor = vmax/DR. NaN passes through
+ *  (transparent holes). Together with a domain-invariant vmax this makes the
+ *  display independent of how much empty far-field the domain contains. */
+export function compressIntensity(
+  values: Float64Array,
+  vmax: number,
+  decades = INTENSITY_DECADES,
+): Float64Array {
+  const out = new Float64Array(values.length).fill(NaN);
+  if (!(vmax > 0)) return out;
+  const floor = vmax / decades;
+  const denom = Math.log1p(decades);
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]!;
+    if (!Number.isFinite(v)) continue;
+    out[i] = Math.min(Math.log1p(Math.max(v, 0) / floor) / denom, 1);
+  }
+  return out;
+}
+
+/** asinh-compress a SIGNED map into [-1, 1] for the diverging ramp (linear
+ *  near zero, logarithmic in the tails, symmetric). */
+export function compressSigned(
+  values: Float64Array,
+  vmax: number,
+  decades = POTENTIAL_DECADES,
+): Float64Array {
+  const out = new Float64Array(values.length).fill(NaN);
+  if (!(vmax > 0)) return out;
+  const s0 = vmax / decades;
+  const denom = Math.asinh(decades);
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]!;
+    if (!Number.isFinite(v)) continue;
+    out[i] = Math.max(-1, Math.min(1, Math.asinh(v / s0) / denom));
+  }
+  return out;
+}
+
 /**
  * Rasterize a scalar map to an ImageData sized (nr x nz). The image is
  * y-flipped so that increasing z is UP in world space (row 0 of ImageData is

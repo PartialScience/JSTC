@@ -5,7 +5,7 @@ import {
   eIntensityMap,
   magnitudeMap,
   referencePhase,
-  robustMax,
+  robustPeak,
   sampleArrows,
   type FieldData,
 } from './fieldMath';
@@ -133,11 +133,19 @@ describe('referencePhase (display phase)', () => {
   });
 });
 
-describe('robustMax', () => {
-  it('ignores NaN and picks a high percentile', () => {
+describe('robustPeak', () => {
+  it('ignores NaN and clips a fixed count of hottest cells', () => {
     const v = new Float64Array([1, 2, 3, 4, 100, NaN]);
-    const m = robustMax(v, 0.5);
-    expect(m).toBeGreaterThanOrEqual(2);
-    expect(m).toBeLessThan(100);
+    expect(robustPeak(v, 1)).toBe(4); // one outlier clipped
+    expect(robustPeak(v, 0)).toBe(100);
+  });
+
+  it('is domain-invariant: unchanged when far-field cells flood the array', () => {
+    // The same hot spot embedded in 10x more near-zero cells: a percentile
+    // scale would collapse; the fixed-count clip must not move.
+    const hot = [50, 80, 100, 120, 200];
+    const small = new Float64Array([...hot, ...Array(100).fill(0.01)]);
+    const large = new Float64Array([...hot, ...Array(1000).fill(0.01)]);
+    expect(robustPeak(large, 2)).toBe(robustPeak(small, 2));
   });
 });
