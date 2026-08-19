@@ -47,7 +47,6 @@ The repository has three parts:
 |------|------------|
 | [`api/`](api/) | Python / FastAPI backend: geometry, meshing, FEM/analytic solvers, and the HTTP API. |
 | [`frontend/`](frontend/) | React + TypeScript app: an interactive `(r, z)` geometry editor (react-konva) and results dashboard. |
-| [`docs/`](docs/) | The C-matrix derivation notebook and the JavaTC reference output used for validation. |
 
 **Tech stack.** Backend: FastAPI, [gmsh](https://gmsh.info/) (meshing),
 [PyMFEM](https://github.com/mfem/PyMFEM) (FEM), NumPy/SciPy, and Numba.
@@ -191,8 +190,7 @@ per geometry and downsampled to the N segments.
 ### Capacitance **C** (`distributed_element_matrices/capacitance/` + `electrostatics/` + `meshing/`)
 
 The capacitance matrix is where JSTC does real field solving. This is the
-**nodal (tent-basis) Galerkin** capacitance matrix, derived start-to-finish in
-[`docs/cmatrix_derivation.ipynb`](docs/cmatrix_derivation.ipynb). The pipeline:
+**nodal (tent-basis) Galerkin** capacitance matrix. The pipeline:
 
 1. **Mesh** — the secondary (one hole), toploads, grounds, and the primary's
    grounded rings are subtracted from the `(r, z)` domain with gmsh's
@@ -314,6 +312,3 @@ the FEM cost.
 - **Frontend**: `npm run test` (Vitest units for the viewport transform, store,
   and geometry ops) and `npm run test:e2e` (Playwright, backend mocked).
 
-See [`docs/cmatrix_derivation.ipynb`](docs/cmatrix_derivation.ipynb) for the
-full capacitance-matrix derivation and `docs/JavaTC Example Coil.txt` for the
-reference values.
