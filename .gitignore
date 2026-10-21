@@ -149,3 +149,5 @@ logs/
 .idea/
 # Root dev-stack orchestration deps
 /node_modules
+
+.vercel
