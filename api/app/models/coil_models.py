@@ -60,8 +60,17 @@ class SecondaryConductorSpec(CoilComponent):
     Finally, this representation also allows for coils which don't necessarily have a uniform 
     spacing between turns, as the turn function does not need to be constant. 
     """
-    _offsetRegion: Optional[OffsetRegion] = field(default=None, init=False, repr=False)
-    """The offset region representing cross section of the coil's windings in the (r,z) plane."""
+    _offsetRegion: Optional[OffsetRegion] = field(
+        default=None, init=False, repr=False, compare=False
+    )
+    """The offset region representing cross section of the coil's windings in the (r,z) plane.
+
+    Excluded from equality/hashing (compare=False): it is DERIVED from the
+    defining fields in __post_init__, and OffsetRegion compares by identity,
+    which would make two identically-specified coils unequal and defeat the
+    structural caching the frozen dataclasses exist to provide (the solvers'
+    lru_caches key on these specs).
+    """
     turn_fxn: Callable[[float], float]
     """A function that takes in a parameter t along the curve and returns the number of turns up to that point."""
     
