@@ -77,6 +77,9 @@ class FieldView:
             primary_current=primary_current,
             secondary_resistance=self._sim.secondary.ac_resistance,
             primary_resistance=self._sim.primary.dc_resistance,
+            secondary_resistance_weights=np.array(
+                self._sim.secondary.segment_wire_length_fractions
+            ),
         )
 
     def electric_field(

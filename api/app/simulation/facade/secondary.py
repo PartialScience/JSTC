@@ -302,6 +302,24 @@ class SecondaryView:
         return float(1.0 / np.sqrt(np.pi * f * mu_0 * conductivity))
 
     @property
+    def segment_wire_length_fractions(self) -> Tuple[float, ...]:
+        """Each virtual-conductor segment's share of the total WIRE length
+        (length N, sums to 1). This is the physically correct weighting for
+        distributing the winding's series resistance across segments: equal
+        arc-length slices hold different amounts of wire whenever the turn
+        density is nonuniform or the path is curved."""
+        from app.formulas.geometric import helical_wire_length_between
+
+        coil = self._sim.coil
+        sec = coil.secondary
+        slices = self._sim._discretizer.get_slices(sec, coil.discretization_order)
+        lengths = np.array([
+            helical_wire_length_between(sec.curve, sec.turn_fxn, a, b)
+            for a, b in zip(slices[:-1], slices[1:])
+        ])
+        return tuple(float(v) for v in lengths / lengths.sum())
+
+    @property
     def conductor_length(self) -> float:
         """Total wire length of the secondary in meters.
 

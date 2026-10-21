@@ -97,6 +97,9 @@ class CoupledView:
             secondary_resistance=r_sec,
             primary_resistance=r_prim,
             include_tank=include_tank,
+            secondary_resistance_weights=np.array(
+                self._sim.secondary.segment_wire_length_fractions
+            ),
         )
         return [complex(v) for v in z]
 

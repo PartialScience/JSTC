@@ -167,6 +167,7 @@ def primary_driven_response(
     primary_current: complex = 1.0,
     secondary_resistance: float = 0.0,
     primary_resistance: float = 0.0,
+    secondary_resistance_weights: np.ndarray | None = None,
 ) -> DrivenResponse:
     """Solve the coupled system's steady-state phasors for a primary drive.
 
@@ -189,9 +190,14 @@ def primary_driven_response(
         frequency_hz: Drive frequency [Hz].
         primary_current: Primary current phasor [A] (magnitude sets scale;
             its phase is the reference).
-        secondary_resistance: Total secondary AC resistance [Ohm], spread
-            equally across segments (finite response at resonance).
+        secondary_resistance: Total secondary AC resistance [Ohm],
+            distributed across segments (finite response at resonance).
         primary_resistance: Primary series resistance [Ohm].
+        secondary_resistance_weights: Optional per-segment fractions of the
+            total secondary resistance (length N, summing to 1) - the
+            physically right weighting is each segment's share of the WIRE
+            length, which differs from uniform for nonuniform turn
+            densities or curved winding paths. Defaults to uniform.
 
     Returns:
         The DrivenResponse phasors.
@@ -207,7 +213,7 @@ def primary_driven_response(
     Ip = complex(primary_current)
 
     AtCinvA = A.T @ linalg.solve(C, A, assume_a="pos")
-    R_seg = (secondary_resistance / n) * np.eye(n)
+    R_seg = np.diag(_segment_resistances(secondary_resistance, n, secondary_resistance_weights))
     K = 1j * w * L + R_seg + (1.0 / (1j * w)) * AtCinvA
 
     I = -1j * w * Ip * linalg.solve(K, m)
@@ -229,6 +235,7 @@ def primary_input_impedance(
     secondary_resistance: float = 0.0,
     primary_resistance: float = 0.0,
     include_tank: bool = True,
+    secondary_resistance_weights: np.ndarray | None = None,
 ) -> np.ndarray:
     """Driving-point impedance looking into the primary, per frequency.
 
@@ -247,8 +254,11 @@ def primary_input_impedance(
         sys: The coupled system.
         frequencies_hz: Frequencies to evaluate (Hz).
         secondary_resistance: Total secondary AC resistance [Ohm],
-            distributed equally across the N segments.
+            distributed across the N segments (see
+            secondary_resistance_weights).
         primary_resistance: Primary series resistance [Ohm].
+        secondary_resistance_weights: Optional per-segment fractions of the
+            total (length N, summing to 1); defaults to uniform.
         include_tank: Add the series tank capacitor 1/(j*omega*C_p). When
             False, returns the impedance of the primary winding + reflected
             secondary alone (the tank cap left for the caller to add).
@@ -265,7 +275,7 @@ def primary_input_impedance(
     Cp = sys.tank_capacitance
 
     AtCinvA = A.T @ linalg.solve(C, A, assume_a="pos")
-    R_seg = (secondary_resistance / n) * np.eye(n)
+    R_seg = np.diag(_segment_resistances(secondary_resistance, n, secondary_resistance_weights))
 
     out = np.empty(len(frequencies_hz), dtype=complex)
     for idx, f in enumerate(frequencies_hz):
@@ -277,3 +287,20 @@ def primary_input_impedance(
             z += 1.0 / (1j * w * Cp)
         out[idx] = z
     return out
+
+
+def _segment_resistances(
+    total_resistance: float, n: int, weights: np.ndarray | None
+) -> np.ndarray:
+    """Per-segment resistances from the total and optional fractions.
+
+    Fractions must have length n and sum to 1; None means uniform.
+    """
+    if weights is None:
+        return np.full(n, total_resistance / n)
+    w = np.asarray(weights, dtype=float)
+    if w.shape != (n,):
+        raise ValueError(f"resistance weights must have shape ({n},), got {w.shape}")
+    if not np.isclose(w.sum(), 1.0, rtol=1e-9):
+        raise ValueError(f"resistance weights must sum to 1, got {w.sum()}")
+    return total_resistance * w
