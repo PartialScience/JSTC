@@ -2,15 +2,16 @@
  * Winding-density editor: uniform turn count, or graded cumulative turn
  * control points.
  *
- * Graded mode shows the control points twice, always in sync:
- *  * an editable table (position along the winding in length units;
- *    cumulative turns). The focused cell shows full precision, resting rows
- *    are curtailed for readability (display-only - stored values keep full
- *    precision);
- *  * a collapsible plot of the cumulative turn curve, with draggable
- *    points.
- * Hovering a table row highlights its point in the plot and vice versa.
- * The plot's turn axis auto-scales to the data with a little headroom.
+ * Graded mode presents the control points inside one collapsible card
+ * ("Turns at positions"): a plot of the cumulative turn curve with labelled
+ * axes and draggable points, and an editable table underneath (one header
+ * row; position along the winding in length units, cumulative turns). The
+ * two are the same data: hovering a table row highlights its point in the
+ * plot and vice versa, the focused cell shows full precision while resting
+ * rows are curtailed (display-only — stored values keep full precision),
+ * and pressing Enter in a row inserts a new point after it. The card
+ * collapses to its header (click the chevron any time, or anywhere on the
+ * header while closed) with an animated expand/collapse.
  *
  * Graded density is not yet experimentally validated; the mode select
  * carries the same badge/wording as the Results banner (one registry).
@@ -73,7 +74,7 @@ export function DensityEditor({
   winding: 'secondary' | 'primary';
   onChange: (turns: TurnProfileSchema) => void;
 }) {
-  const [plotOpen, setPlotOpen] = useState(true);
+  const [open, setOpen] = useState(true);
   const [highlight, setHighlight] = useState<number | null>(null);
 
   const mark = turns.kind === 'graded' ? unvalidatedFeature(`graded-${winding}-turns`) : null;
@@ -107,8 +108,8 @@ export function DensityEditor({
           turns={turns}
           pathLength={pathLength}
           prefix={prefix}
-          plotOpen={plotOpen}
-          setPlotOpen={setPlotOpen}
+          open={open}
+          setOpen={setOpen}
           highlight={highlight}
           setHighlight={setHighlight}
           patchPoint={patchPoint}
@@ -123,8 +124,8 @@ function GradedEditor({
   turns,
   pathLength,
   prefix,
-  plotOpen,
-  setPlotOpen,
+  open,
+  setOpen,
   highlight,
   setHighlight,
   patchPoint,
@@ -133,14 +134,36 @@ function GradedEditor({
   turns: GradedTurnProfileSchema;
   pathLength: number;
   prefix: string;
-  plotOpen: boolean;
-  setPlotOpen: (v: boolean) => void;
+  open: boolean;
+  setOpen: (v: boolean) => void;
   highlight: number | null;
   setHighlight: (v: number | null) => void;
   patchPoint: (points: GradedPoint[], i: number, u: number, n: number) => void;
   onChange: (turns: TurnProfileSchema) => void;
 }) {
   const points = turns.points as GradedPoint[];
+
+  /** Insert the midpoint of the gap after row i (after the previous row when
+   *  i is the last — a point cannot go past the winding end). Focus moves to
+   *  the new row's position cell: rows are index-keyed, so leaving focus in
+   *  place would show the old row's draft against the inserted point. */
+  const insertAfter = (i: number) => {
+    const at = Math.min(i + 1, points.length - 1);
+    const a = points[at - 1]!;
+    const b = points[at]!;
+    const mid: GradedPoint = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    onChange({
+      kind: 'graded',
+      points: [...points.slice(0, at), mid, ...points.slice(at)],
+    });
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLInputElement>(
+        `[data-testid="${prefix}-density-${at}-pos"]`,
+      );
+      el?.focus();
+      el?.select();
+    });
+  };
 
   const addPoint = () => {
     // Insert at the midpoint of the widest position gap.
@@ -153,105 +176,145 @@ function GradedEditor({
         gapAt = i;
       }
     }
-    const a = points[gapAt - 1]!;
-    const b = points[gapAt]!;
-    const mid: GradedPoint = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    onChange({
-      kind: 'graded',
-      points: [...points.slice(0, gapAt), mid, ...points.slice(gapAt)],
-    });
+    insertAfter(gapAt - 1);
   };
 
   const removePoint = (i: number) =>
     onChange({ kind: 'graded', points: points.filter((_, j) => j !== i) });
 
   return (
-    <div className="density-editor" data-testid={`${prefix}-density-editor`}>
-      <div className="field-note">
-        cumulative turns at positions along the winding
+    <div
+      className={`collapsible-card${open ? ' open' : ''}`}
+      data-testid={`${prefix}-density-editor`}
+    >
+      {/* The whole header expands the card while it is closed; the chevron
+          toggles in either state. */}
+      <div
+        className="collapsible-header"
+        onClick={() => {
+          if (!open) setOpen(true);
+        }}
+        role={open ? undefined : 'button'}
+        data-testid={`${prefix}-density-header`}
+      >
+        <span>Turns at positions</span>
         <button
           type="button"
-          className="link-btn"
-          style={{ float: 'right' }}
-          onClick={() => setPlotOpen(!plotOpen)}
+          className="collapse-arrow"
+          aria-expanded={open}
+          aria-label={open ? 'Collapse' : 'Expand'}
           data-testid={`${prefix}-density-plot-toggle`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(!open);
+          }}
         >
-          {plotOpen ? 'hide plot' : 'show plot'}
+          ▾
         </button>
       </div>
 
-      {plotOpen && (
-        <DensityPlot
-          points={points}
-          highlight={highlight}
-          setHighlight={setHighlight}
-          onDrag={(i, u, n) => patchPoint(points, i, u, n)}
-          testId={`${prefix}-density-plot`}
-        />
-      )}
+      <div className="collapsible-body" aria-hidden={!open}>
+        <div className="collapsible-inner">
+          <DensityPlot
+            points={points}
+            highlight={highlight}
+            setHighlight={setHighlight}
+            onDrag={(i, u, n) => patchPoint(points, i, u, n)}
+            testId={`${prefix}-density-plot`}
+          />
 
-      {points.map((p, i) => {
-        const first = i === 0;
-        const last = i === points.length - 1;
-        return (
-          <div
-            className={`field-row vertex-row${highlight === i ? ' highlighted' : ''}`}
-            key={i}
-            data-testid={`${prefix}-density-row-${i}`}
-            onMouseEnter={() => setHighlight(i)}
-            onMouseLeave={() => setHighlight(null)}
+          <table className="density-table">
+            <thead>
+              <tr>
+                <th>position</th>
+                <th>turns</th>
+                <th aria-label="actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {points.map((p, i) => {
+                const first = i === 0;
+                const last = i === points.length - 1;
+                return (
+                  <tr
+                    key={i}
+                    className={highlight === i ? 'highlighted' : undefined}
+                    data-testid={`${prefix}-density-row-${i}`}
+                    onMouseEnter={() => setHighlight(i)}
+                    onMouseLeave={() => setHighlight(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        insertAfter(i);
+                      }
+                    }}
+                  >
+                    <td>
+                      <QuantityField
+                        bare
+                        label={`point ${i} position`}
+                        kind="length"
+                        fieldId={`${prefix}-density-${i}-pos`}
+                        value={p[0] * pathLength}
+                        min={0}
+                        disabled={first || last}
+                        onCommit={(v) => {
+                          if (first || last) return; // endpoints pinned to 0 and L
+                          patchPoint(points, i, pathLength > 0 ? v / pathLength : 0, p[1]);
+                        }}
+                        testId={`${prefix}-density-${i}-pos`}
+                      />
+                    </td>
+                    <td>
+                      <NumberField
+                        bare
+                        label={`point ${i} turns`}
+                        value={p[1]}
+                        min={0}
+                        displayPrecision={5}
+                        disabled={first}
+                        onCommit={(n) => {
+                          if (first) return; // the winding starts at zero turns
+                          patchPoint(points, i, p[0], n);
+                        }}
+                        testId={`${prefix}-density-${i}-turns`}
+                      />
+                    </td>
+                    <td className="density-table-actions">
+                      <button
+                        type="button"
+                        className="link-btn"
+                        title="Delete point"
+                        disabled={first || last}
+                        onClick={() => removePoint(i)}
+                        data-testid={`${prefix}-density-${i}-del`}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <button
+            type="button"
+            className="link-btn add-vertex"
+            data-testid={`${prefix}-density-add`}
+            onClick={addPoint}
           >
-            <QuantityField
-              label={`position`}
-              kind="length"
-              fieldId={`${prefix}-density-${i}-pos`}
-              value={p[0] * pathLength}
-              min={0}
-              onCommit={(v) => {
-                if (first || last) return; // endpoints are pinned to 0 and L
-                patchPoint(points, i, pathLength > 0 ? v / pathLength : 0, p[1]);
-              }}
-              testId={`${prefix}-density-${i}-pos`}
-            />
-            <NumberField
-              label="turns"
-              value={p[1]}
-              min={0}
-              displayPrecision={5}
-              onCommit={(n) => {
-                if (first) return; // the winding starts at zero turns
-                patchPoint(points, i, p[0], n);
-              }}
-              testId={`${prefix}-density-${i}-turns`}
-            />
-            <button
-              type="button"
-              className="link-btn"
-              title="Delete point"
-              disabled={first || last}
-              onClick={() => removePoint(i)}
-              data-testid={`${prefix}-density-${i}-del`}
-            >
-              ✕
-            </button>
-          </div>
-        );
-      })}
-      <button
-        type="button"
-        className="link-btn add-vertex"
-        data-testid={`${prefix}-density-add`}
-        onClick={addPoint}
-      >
-        + add point
-      </button>
+            + add point
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 const PLOT_W = 260;
-const PLOT_H = 130;
-const PAD = { left: 10, right: 10, top: 10, bottom: 14 };
+const PLOT_H = 140;
+const PAD = { left: 30, right: 10, top: 10, bottom: 26 };
 
 function DensityPlot({
   points,
@@ -284,6 +347,8 @@ function DensityPlot({
     return [Math.min(Math.max(u, 0), 1), Math.max(n, 0)];
   };
 
+  const xAxisY = PLOT_H - PAD.bottom;
+
   return (
     <svg
       ref={svgRef}
@@ -302,20 +367,26 @@ function DensityPlot({
       }}
     >
       {/* axes */}
-      <line
-        x1={PAD.left}
-        y1={PLOT_H - PAD.bottom}
-        x2={PLOT_W - PAD.right}
-        y2={PLOT_H - PAD.bottom}
-        className="density-plot-axis"
-      />
-      <line
-        x1={PAD.left}
-        y1={PAD.top}
-        x2={PAD.left}
-        y2={PLOT_H - PAD.bottom}
-        className="density-plot-axis"
-      />
+      <line x1={PAD.left} y1={xAxisY} x2={PLOT_W - PAD.right} y2={xAxisY} className="density-plot-axis" />
+      <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={xAxisY} className="density-plot-axis" />
+      {/* axis labels */}
+      <text
+        className="density-plot-label"
+        x={(PAD.left + PLOT_W - PAD.right) / 2}
+        y={PLOT_H - 6}
+        textAnchor="middle"
+      >
+        position
+      </text>
+      <text
+        className="density-plot-label"
+        x={0}
+        y={0}
+        textAnchor="middle"
+        transform={`translate(10 ${(PAD.top + xAxisY) / 2}) rotate(-90)`}
+      >
+        turns
+      </text>
       {/* cumulative turn curve (linear between control points) */}
       <polyline
         className="density-plot-curve"

@@ -1375,9 +1375,106 @@ button[data-testid='spice-export'] {
 
 /* --- Winding density editor --- */
 
-.density-editor .vertex-row.highlighted {
+/* Collapsible card: a rounded rectangle that folds to its header. The body
+   animates via the grid-template-rows 0fr->1fr trick (animates to/from the
+   content's natural height, no measured max-height); visibility flips with a
+   matching delay so collapsed content can't be focused or clicked while the
+   fold-up runs, and appears instantly when opening. */
+.collapsible-card {
+  border: 1px solid var(--border, #3334);
+  border-radius: 8px;
+  margin: 0.4rem 0 0.5rem;
+  overflow: hidden;
+}
+
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.4rem 0.4rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  user-select: none;
+}
+.collapsible-card:not(.open) .collapsible-header {
+  cursor: pointer;
+}
+
+.collapse-arrow {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.15rem 0.3rem;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  transform: rotate(-90deg); /* closed: points right */
+}
+.collapsible-card.open .collapse-arrow {
+  transform: rotate(0deg); /* open: points down */
+}
+
+.collapsible-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+  /* Hide AFTER the fold-up finishes so nothing pops out mid-animation… */
+  visibility: hidden;
+  transition-property: grid-template-rows, visibility;
+  transition-duration: 0.22s, 0s;
+  transition-delay: 0s, 0.22s;
+}
+.collapsible-card.open .collapsible-body {
+  grid-template-rows: 1fr;
+  /* …and show immediately when opening. */
+  visibility: visible;
+  transition-delay: 0s, 0s;
+}
+.collapsible-inner {
+  overflow: hidden;
+  min-height: 0;
+  padding: 0 0.5rem 0.5rem;
+}
+
+/* The control-point table: one header row, bare inputs in the cells. */
+.density-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.density-table th {
+  text-align: left;
+  font-weight: 500;
+  opacity: 0.7;
+  padding: 0.15rem 0.3rem;
+}
+.density-table td {
+  padding: 0.12rem 0.15rem;
+}
+.density-table .field-bare input {
+  width: 100%;
+}
+.density-table tr.highlighted td {
   background: color-mix(in srgb, var(--accent, #38bdf8) 12%, transparent);
-  border-radius: 4px;
+}
+.density-table tr.highlighted td:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.density-table tr.highlighted td:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.density-table-actions {
+  width: 1.6rem;
+  text-align: center;
+}
+
+.field-bare {
+  margin: 0;
+}
+.field-bare > span {
+  display: none;
 }
 
 .density-plot {
@@ -1386,6 +1483,11 @@ button[data-testid='spice-export'] {
   border: 1px solid var(--border, #3334);
   border-radius: 6px;
   background: var(--panel-bg, transparent);
+}
+.density-plot-label {
+  font-size: 8px;
+  fill: currentColor;
+  opacity: 0.65;
 }
 .density-plot-axis {
   stroke: currentColor;

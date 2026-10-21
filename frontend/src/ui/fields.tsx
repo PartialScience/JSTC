@@ -49,6 +49,10 @@ interface NumberFieldProps {
    *  precision value appears while the field is focused and is always what
    *  is stored (display-only rounding). */
   displayPrecision?: number;
+  /** Render just the input (no visible label) for table cells; the label
+   *  still reaches assistive tech via aria-label. */
+  bare?: boolean;
+  disabled?: boolean;
 }
 
 export function NumberField({
@@ -60,6 +64,8 @@ export function NumberField({
   testId,
   unvalidated,
   displayPrecision,
+  bare,
+  disabled,
 }: NumberFieldProps) {
   const atRest = (v: number) =>
     displayPrecision != null && Number.isFinite(v)
@@ -75,16 +81,20 @@ export function NumberField({
   }, [value, displayPrecision]);
 
   return (
-    <label className="field">
-      <span>
-        {label}
-        <UnvalidatedBadge mark={unvalidated} />
-      </span>
+    <label className={bare ? 'field field-bare' : 'field'}>
+      {!bare && (
+        <span>
+          {label}
+          <UnvalidatedBadge mark={unvalidated} />
+        </span>
+      )}
       <input
         type="number"
         step={step}
         min={min}
         data-testid={testId}
+        aria-label={bare ? label : undefined}
+        disabled={disabled}
         value={draft}
         onFocus={() => {
           focused.current = true;
@@ -124,6 +134,10 @@ interface QuantityFieldProps {
   /** Overrides the kind's default display unit (e.g. nF for tank capacitance). */
   defaultUnit?: string;
   testId?: string;
+  /** Render just the input (no visible label) for table cells; the label
+   *  still reaches assistive tech via aria-label. */
+  bare?: boolean;
+  disabled?: boolean;
 }
 
 /**
@@ -142,6 +156,8 @@ export function QuantityField({
   min,
   defaultUnit,
   testId,
+  bare,
+  disabled,
 }: QuantityFieldProps) {
   const storedUnit = useEditorStore((s) => s.unitPrefs.inputs[fieldId]);
   const setInputUnit = useEditorStore((s) => s.setInputUnit);
@@ -175,9 +191,12 @@ export function QuantityField({
     }, 0);
   };
 
+  const classes = ['field'];
+  if (error) classes.push('field-invalid');
+  if (bare) classes.push('field-bare');
   return (
-    <label className={error ? 'field field-invalid' : 'field'}>
-      <span>{label}</span>
+    <label className={classes.join(' ')}>
+      {!bare && <span>{label}</span>}
       <div className="quantity-input">
         <input
           ref={inputRef}
@@ -186,6 +205,8 @@ export function QuantityField({
           // is typeable on mobile, where a numeric keypad blocks letters.
           inputMode="text"
           data-testid={testId}
+          aria-label={bare ? label : undefined}
+          disabled={disabled}
           value={draft}
           aria-invalid={error ? true : undefined}
           onFocus={() => {
