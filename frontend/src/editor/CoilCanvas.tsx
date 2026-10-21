@@ -4,12 +4,13 @@
  * the shared Viewport, which every layer (and the future field solve) reads.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Layer, Line, Rect, Stage, Text } from 'react-konva';
+import { Circle as KonvaCircle, Layer, Line, Rect, Stage, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 
 import type { ComponentRef, Point, Tool } from '../domain/coil';
 import { isSelected } from '../domain/coil';
+import { pathEndpoints } from '../domain/paths';
 import { CursorLayer } from '../field/CursorLayer';
 import { coordReadout } from '../field/fieldFormat';
 import { FieldLayer } from '../field/FieldLayer';
@@ -149,6 +150,7 @@ export function CoilCanvas() {
 
   const colors = useThemeColors();
   const coil = useEditorStore((s) => s.coil);
+  const fieldDrive = useEditorStore((s) => s.fieldDrive);
   const selection = useEditorStore((s) => s.selection);
   const tool = useEditorStore((s) => s.tool);
   const placementShape = useEditorStore((s) => s.placementShape);
@@ -294,7 +296,9 @@ export function CoilCanvas() {
     else if (tool === 'primary')
       addPrimary(world, [world[0] + coil.r_max * 0.05, world[1]]);
     else if (tool === 'secondary')
-      updateSecondary({ start: world, end: [world[0], world[1] + coil.z_max * 0.15] });
+      updateSecondary({
+        path: { kind: 'line', start: world, end: [world[0], world[1] + coil.z_max * 0.15] },
+      });
     setTool('pan');
   };
 
@@ -815,6 +819,31 @@ export function CoilCanvas() {
               onPatch={updatePrimary}
             />
           )}
+          {/* Hot-end marker: a dot on the primary winding end that carries
+              V_p in the field drive (toggled in the field panel; mirrored
+              like the geometry). */}
+          {coil.primary &&
+            fieldDrive.showHotEnd &&
+            (() => {
+              const { start, end } = pathEndpoints(coil.primary.path);
+              const hot = fieldDrive.hotEnd === 'start' ? start : end;
+              return [hot, [-hot[0], hot[1]] as Point].map((p, i) => {
+                const sp = toScreen(p[0], p[1]);
+                return (
+                  <KonvaCircle
+                    key={`hot-end-${i}`}
+                    x={sp.x}
+                    y={sp.y}
+                    radius={5}
+                    fill={colors.handleFill}
+                    stroke={colors.handleStroke}
+                    strokeWidth={1.5}
+                    listening={false}
+                    data-testid="hot-end-marker"
+                  />
+                );
+              });
+            })()}
           {coil.toploads.map((t, i) => (
             <ConductorShape
               key={`topload-${i}`}

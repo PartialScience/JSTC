@@ -1331,3 +1331,88 @@ button[data-testid='spice-export'] {
   white-space: nowrap;
   border: 0;
 }
+
+/* --- Unvalidated-feature provenance (parametric paths, graded density) --- */
+
+.unvalidated-badge {
+  display: inline-block;
+  margin-left: 0.4em;
+  padding: 0 0.35em;
+  border-radius: 3px;
+  font-size: 0.68em;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  background: color-mix(in srgb, var(--accent, #eab308) 18%, transparent);
+  color: var(--accent, #b45309);
+  border: 1px solid color-mix(in srgb, var(--accent, #eab308) 45%, transparent);
+  cursor: help;
+  vertical-align: text-top;
+}
+
+.unvalidated-banner {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent, #eab308) 50%, transparent);
+  background: color-mix(in srgb, var(--accent, #eab308) 10%, transparent);
+  font-size: 0.85rem;
+}
+.unvalidated-banner p {
+  margin: 0 0 0.35rem;
+}
+.unvalidated-banner ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.stat-value.stat-not-computed {
+  opacity: 0.6;
+  font-style: italic;
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+/* --- Winding density editor --- */
+
+.density-editor .vertex-row.highlighted {
+  background: color-mix(in srgb, var(--accent, #38bdf8) 12%, transparent);
+  border-radius: 4px;
+}
+
+.density-plot {
+  display: block;
+  margin: 0.35rem 0 0.5rem;
+  border: 1px solid var(--border, #3334);
+  border-radius: 6px;
+  background: var(--panel-bg, transparent);
+}
+.density-plot-axis {
+  stroke: currentColor;
+  opacity: 0.35;
+  stroke-width: 1;
+}
+.density-plot-curve {
+  stroke: var(--accent, #38bdf8);
+  stroke-width: 1.6;
+}
+.density-plot-point {
+  fill: var(--accent, #38bdf8);
+  stroke: var(--panel-bg, #fff);
+  stroke-width: 1;
+  cursor: grab;
+}
+.density-plot-point.highlighted {
+  fill: var(--accent-strong, #0284c7);
+}
+
+/* --- Checkbox field (e.g. "show hot end") --- */
+
+.field-checkbox {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.field-checkbox input {
+  width: auto;
+}

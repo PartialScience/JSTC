@@ -44,8 +44,10 @@ import { normalizeUnitPrefs, type UnitPrefs } from '../units/units';
 export const FILE_FORMAT = 'jstc-coil';
 /** Current envelope version. Bump only on a breaking coil-schema change and
  *  add a matching entry to MIGRATIONS.
- *  v2: geometry stored in SI metres (was "coil units" scaled by unit_scale). */
-export const FILE_VERSION = 2;
+ *  v2: geometry stored in SI metres (was "coil units" scaled by unit_scale).
+ *  v3: windings carry a parametric `path` (was bare start/end); turn profiles
+ *      lost their t_min/t_max window (the domain is derived from the path). */
+export const FILE_VERSION = 3;
 /** Extension used for exports. Import also accepts plain `.json`. */
 export const FILE_EXTENSION = '.jstc';
 
@@ -179,10 +181,42 @@ function migrateV1toV2(file: Record<string, unknown>): Record<string, unknown> {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/** v2 → v3: each winding's bare start/end became a parametric `path`
+ *  (kind "line" preserves the geometry exactly), and the uniform turn
+ *  profile lost its t_min/t_max window. The analysis bundle's geometry
+ *  fingerprint format also changed, so cached outputs are dropped (stale) —
+ *  a re-run recomputes them. */
+function migrateV2toV3(file: Record<string, unknown>): Record<string, unknown> {
+  const coilHost: any = isObject(file.coil) ? file.coil : file;
+  for (const key of ['secondary', 'primary']) {
+    const w = coilHost[key];
+    if (!w || typeof w !== 'object') continue;
+    if (!w.path && Array.isArray(w.start) && Array.isArray(w.end)) {
+      w.path = { kind: 'line', start: w.start, end: w.end };
+    }
+    delete w.start;
+    delete w.end;
+    if (w.turn_fxn && typeof w.turn_fxn === 'object') {
+      delete w.turn_fxn.t_min;
+      delete w.turn_fxn.t_max;
+    }
+  }
+  if (isObject(file.coil)) {
+    file.analysis = null;
+    file.stale = true;
+  }
+  return file;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 /** Migrations that bring an older envelope up to FILE_VERSION. Entry at index
  *  i migrates a v(i+1) file to v(i+2). Append only — never edit or reorder an
  *  existing entry, or old files stop importing. */
-const MIGRATIONS: ((file: Record<string, unknown>) => Record<string, unknown>)[] = [migrateV1toV2];
+const MIGRATIONS: ((file: Record<string, unknown>) => Record<string, unknown>)[] = [
+  migrateV1toV2,
+  migrateV2toV3,
+];
 
 function migrate(file: Record<string, unknown>, fromVersion: number): Record<string, unknown> {
   let out = file;
@@ -214,15 +248,40 @@ function looksLikeCoil(v: unknown): v is Record<string, unknown> {
 
 /** Merge a raw coil over blank defaults so every required field exists even
  *  when the file omits it, then fold onto the physical half-plane (r >= 0). */
+/** Accept a winding object whose geometry is a path, or legacy/hand-written
+ *  start/end (coerced to a line path); null when neither is usable. */
+function coerceWindingPath(w: Record<string, unknown>): Record<string, unknown> | null {
+  if (isObject(w.path) && typeof (w.path as { kind?: unknown }).kind === 'string') return w;
+  if (Array.isArray(w.start) && Array.isArray(w.end)) {
+    const { start, end, ...rest } = w;
+    return { ...rest, path: { kind: 'line', start, end } };
+  }
+  return null;
+}
+
+/** A winding with no usable geometry keeps its other fields; dropping the
+ *  broken geometry lets the blank-default path fill in on merge. */
+function stripGeometry(w: Record<string, unknown>): Record<string, unknown> {
+  const { path, start, end, ...rest } = w;
+  void path;
+  void start;
+  void end;
+  return rest;
+}
+
 function normalizeCoil(raw: Record<string, unknown>): Coil {
   const base = blankCoil();
+  const rawSecondary = isObject(raw.secondary)
+    ? (coerceWindingPath(raw.secondary) ?? stripGeometry(raw.secondary))
+    : null;
+  const rawPrimary = isObject(raw.primary) ? coerceWindingPath(raw.primary) : null;
   return clampToRightHalfPlane({
     // Merge the secondary so a partial one still has material/turns/wire_dia.
-    secondary: isObject(raw.secondary)
-      ? ({ ...base.secondary, ...(raw.secondary as object) } as SecondarySchema)
+    secondary: rawSecondary
+      ? ({ ...base.secondary, ...rawSecondary } as SecondarySchema)
       : base.secondary,
-    // Only install a primary if one is present; otherwise there is none.
-    primary: isObject(raw.primary) ? (raw.primary as PrimarySchema) : null,
+    // Only install a primary if one is present (with usable geometry).
+    primary: rawPrimary ? (rawPrimary as unknown as PrimarySchema) : null,
     toploads: Array.isArray(raw.toploads) ? (raw.toploads as ToploadSchema[]) : base.toploads,
     grounds: Array.isArray(raw.grounds) ? (raw.grounds as GroundSchema[]) : base.grounds,
     r_max: num(raw.r_max, base.r_max),

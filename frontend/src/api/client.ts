@@ -13,8 +13,15 @@ export const api = createClient<paths>({
 
 // Convenient aliases for the schema component types used across the app.
 export type CoilSchema = components['schemas']['SimulatableTeslaCoilSchema'];
-export type SecondarySchema = components['schemas']['LinearSecondaryConductorSchema'];
-export type PrimarySchema = components['schemas']['LinearPrimarySchema'];
+export type SecondarySchema = components['schemas']['SecondaryConductorSchema'];
+export type PrimarySchema = components['schemas']['PrimarySchema'];
+export type PathSchema =
+  | components['schemas']['LinePathSchema']
+  | components['schemas']['ArcPathSchema']
+  | components['schemas']['SplinePathSchema'];
+export type LinePathSchema = components['schemas']['LinePathSchema'];
+export type ArcPathSchema = components['schemas']['ArcPathSchema'];
+export type SplinePathSchema = components['schemas']['SplinePathSchema'];
 export type ToploadSchema = components['schemas']['ToploadSchema'];
 export type GroundSchema = components['schemas']['GroundedConductorSchema'];
 export type GeometrySchema =
@@ -24,7 +31,12 @@ export type GeometrySchema =
 export type CrossSectionSchema =
   | components['schemas']['CircularCrossSectionSchema']
   | components['schemas']['RectangularCrossSectionSchema'];
-export type TurnProfileSchema = components['schemas']['UniformTurnProfileSchema'];
+export type TurnProfileSchema =
+  | components['schemas']['UniformTurnProfileSchema']
+  | components['schemas']['GradedTurnProfileSchema'];
+export type UniformTurnProfileSchema = components['schemas']['UniformTurnProfileSchema'];
+export type GradedTurnProfileSchema = components['schemas']['GradedTurnProfileSchema'];
+export type ComputedValue = components['schemas']['ComputedValue'];
 export type MaterialSchema = components['schemas']['MaterialSchema'];
 export type BoundaryConditionSchema = components['schemas']['BoundaryConditionSchema'];
 

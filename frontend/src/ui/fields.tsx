@@ -16,6 +16,27 @@ import {
   type QuantityKind,
 } from '../units/units';
 
+/** Marks a control whose current value engages a feature the community has
+ *  not experimentally validated yet (see domain/provenance.ts). Rendered as
+ *  a small badge beside the label; the wording matches the Results banner
+ *  bullet so the two can never drift apart. */
+export interface UnvalidatedMark {
+  wording: string;
+}
+
+export function UnvalidatedBadge({ mark }: { mark?: UnvalidatedMark | null }) {
+  if (!mark) return null;
+  return (
+    <span
+      className="unvalidated-badge"
+      title={`Not yet experimentally validated: ${mark.wording}`}
+      data-testid="unvalidated-badge"
+    >
+      unvalidated
+    </span>
+  );
+}
+
 interface NumberFieldProps {
   label: string;
   value: number;
@@ -23,6 +44,11 @@ interface NumberFieldProps {
   step?: number | 'any';
   min?: number;
   testId?: string;
+  unvalidated?: UnvalidatedMark | null;
+  /** Curtail the resting display to this many significant digits; the full
+   *  precision value appears while the field is focused and is always what
+   *  is stored (display-only rounding). */
+  displayPrecision?: number;
 }
 
 export function NumberField({
@@ -32,28 +58,41 @@ export function NumberField({
   step = 'any',
   min,
   testId,
+  unvalidated,
+  displayPrecision,
 }: NumberFieldProps) {
-  const [draft, setDraft] = useState(String(value));
+  const atRest = (v: number) =>
+    displayPrecision != null && Number.isFinite(v)
+      ? String(Number(v.toPrecision(displayPrecision)))
+      : String(v);
+  const [draft, setDraft] = useState(atRest(value));
   const focused = useRef(false);
 
   // Keep the draft in sync with external changes while not being edited.
   useEffect(() => {
-    if (!focused.current) setDraft(String(value));
-  }, [value]);
+    if (!focused.current) setDraft(atRest(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, displayPrecision]);
 
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>
+        {label}
+        <UnvalidatedBadge mark={unvalidated} />
+      </span>
       <input
         type="number"
         step={step}
         min={min}
         data-testid={testId}
         value={draft}
-        onFocus={() => (focused.current = true)}
+        onFocus={() => {
+          focused.current = true;
+          setDraft(String(value));
+        }}
         onBlur={() => {
           focused.current = false;
-          setDraft(String(value));
+          setDraft(atRest(value));
         }}
         onChange={(e) => {
           setDraft(e.target.value);
@@ -199,6 +238,7 @@ interface SelectFieldProps<T extends string> {
   options: readonly T[];
   onChange: (value: T) => void;
   testId?: string;
+  unvalidated?: UnvalidatedMark | null;
 }
 
 export function SelectField<T extends string>({
@@ -207,10 +247,14 @@ export function SelectField<T extends string>({
   options,
   onChange,
   testId,
+  unvalidated,
 }: SelectFieldProps<T>) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>
+        {label}
+        <UnvalidatedBadge mark={unvalidated} />
+      </span>
       <select
         data-testid={testId}
         value={value}
@@ -222,6 +266,28 @@ export function SelectField<T extends string>({
           </option>
         ))}
       </select>
+    </label>
+  );
+}
+
+
+interface CheckboxFieldProps {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  testId?: string;
+}
+
+export function CheckboxField({ label, value, onChange, testId }: CheckboxFieldProps) {
+  return (
+    <label className="field field-checkbox">
+      <span>{label}</span>
+      <input
+        type="checkbox"
+        data-testid={testId}
+        checked={value}
+        onChange={(e) => onChange(e.target.checked)}
+      />
     </label>
   );
 }

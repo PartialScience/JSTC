@@ -3,88 +3,128 @@
  * and handle positions for rendering. Kept framework-free and unit-tested;
  * the Konva layer maps these through the viewport.
  */
-import type { GeometrySchema, PrimarySchema, SecondarySchema } from '../api/client';
+import type { GeometrySchema, PathSchema, PrimarySchema, SecondarySchema } from '../api/client';
 import type { Point } from '../domain/coil';
-import { primaryCrossSectionHalfExtent, primaryRingCenters } from './primaryRings';
+import { evaluatePath } from '../domain/paths';
+import { primaryCrossSectionHalfExtent, primaryRings } from './primaryRings';
 
-/** The winding as a stadium/capsule outline in world (r, z), one side of the
- *  axis. The secondary is a line of half-width wire_dia/2 with round caps. */
-export function secondaryOutline(sec: SecondarySchema, capSegments = 8): Point[] {
-  const [x0, z0] = sec.start;
-  const [x1, z1] = sec.end;
-  const half = sec.wire_dia / 2;
-  const dx = x1 - x0;
-  const dz = z1 - z0;
-  const len = Math.hypot(dx, dz) || 1;
-  // Unit tangent and left normal.
-  const tx = dx / len;
-  const tz = dz / len;
-  const nx = -tz;
-  const nz = tx;
+/** The winding envelope as a closed outline in world (r, z), one side of
+ *  the axis: the path offset by half the conductor width on both sides,
+ *  joined by semicircular end caps. Works for every path kind (the sampled
+ *  polyline follows the exact evaluated path). */
+export function windingOutline(
+  path: PathSchema,
+  conductorWidth: number,
+  capSegments = 8,
+): Point[] {
+  let p;
+  try {
+    p = evaluatePath(path);
+  } catch {
+    return []; // transiently degenerate while being edited - draw nothing
+  }
+  const half = conductorWidth / 2;
+  // Display tolerance: a small fraction of the conductor half-width keeps
+  // the outline visually exact at any zoom the conductor itself is visible.
+  const params = p.sampleParams(half / 8);
 
-  const pts: Point[] = [];
-  // Left side start -> end
-  pts.push([x0 + nx * half, z0 + nz * half]);
-  pts.push([x1 + nx * half, z1 + nz * half]);
-  // End cap (semicircle from +n to -n around the end point)
-  for (let i = 1; i < capSegments; i++) {
-    const a = (Math.PI * i) / capSegments;
-    // Rotate the +normal toward the tangent then to -normal
-    const ca = Math.cos(a);
-    const sa = Math.sin(a);
-    const ox = nx * ca + tx * sa;
-    const oz = nz * ca + tz * sa;
-    pts.push([x1 + ox * half, z1 + oz * half]);
+  const left: Point[] = [];
+  const right: Point[] = [];
+  for (const s of params) {
+    const [x, z] = p.pointAt(s);
+    const [tx, tz] = p.tangentAt(s);
+    left.push([x - tz * half, z + tx * half]);
+    right.push([x + tz * half, z - tx * half]);
   }
-  // Right side end -> start
-  pts.push([x1 - nx * half, z1 - nz * half]);
-  pts.push([x0 - nx * half, z0 - nz * half]);
-  // Start cap (semicircle back to +n)
-  for (let i = 1; i < capSegments; i++) {
-    const a = (Math.PI * i) / capSegments;
-    const ca = Math.cos(a);
-    const sa = Math.sin(a);
-    const ox = -nx * ca - tx * sa;
-    const oz = -nz * ca - tz * sa;
-    pts.push([x0 + ox * half, z0 + oz * half]);
-  }
-  return pts;
+
+  const cap = (center: Point, tangent: Point, flip: boolean): Point[] => {
+    // Semicircle from +left-normal around the (anti)tangent to -left-normal
+    const nx = -tangent[1];
+    const nz = tangent[0];
+    const txs = flip ? -tangent[0] : tangent[0];
+    const tzs = flip ? -tangent[1] : tangent[1];
+    const pts: Point[] = [];
+    for (let i = 1; i < capSegments; i++) {
+      const a = (Math.PI * i) / capSegments;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      pts.push([center[0] + (nx * ca + txs * sa) * half, center[1] + (nz * ca + tzs * sa) * half]);
+    }
+    return pts;
+  };
+
+  const startPt = p.pointAt(0);
+  const endPt = p.pointAt(p.length);
+  const startTan = p.tangentAt(0);
+  const endTan = p.tangentAt(p.length);
+
+  return [
+    ...left,
+    ...cap(endPt, endTan, false),
+    ...right.reverse(),
+    ...cap(startPt, startTan, true).reverse(),
+  ];
 }
 
-/** The primary's capsule outline in world (r, z), one side of the axis. The
- *  primary reuses the winding capsule with its cross-section width as the
- *  effective wire diameter (round conductor -> diameter, ribbon -> width). */
+/** The secondary winding's envelope outline. */
+export function secondaryOutline(sec: SecondarySchema, capSegments = 8): Point[] {
+  return windingOutline(sec.path, sec.wire_dia, capSegments);
+}
+
+/** The primary's envelope outline (its cross-section width as the
+ *  effective conductor diameter: round -> diameter, ribbon -> width). */
 export function primaryOutline(prim: PrimarySchema, capSegments = 8): Point[] {
   const width =
     prim.cross_section.kind === 'circular'
       ? prim.cross_section.diameter
       : prim.cross_section.width;
-  return secondaryOutline({ ...prim, wire_dia: width } as SecondarySchema, capSegments);
+  return windingOutline(prim.path, width, capSegments);
+}
+
+/** A sampled polyline of a winding path's centerline (for drawing the
+ *  path itself, e.g. while editing spline points). */
+export function pathPolyline(path: PathSchema, tolerance: number): Point[] {
+  try {
+    const p = evaluatePath(path);
+    return p.sampleParams(tolerance).map((s) => p.pointAt(s));
+  } catch {
+    return []; // transiently degenerate while being edited
+  }
+}
+
+export interface RingOutline {
+  outline: Point[];
+  /** Fraction of a full turn this ring represents (the viewer fades the
+   *  fractional final ring by this). */
+  fraction: number;
 }
 
 /** The primary's per-turn ring cross-sections as world-space polygons (one
  *  side of the axis). One polygon per turn, centered on the ring center the
- *  solver uses (`primaryRingCenters`) and sized to the conductor cross-section
+ *  solver uses (`primaryRings`) and sized to the conductor cross-section
  *  — a circle for round wire, a rectangle for ribbon. This is the honest 2-D
  *  picture of the primary: the discrete rings the physics actually models,
  *  rather than a single swept band. */
-export function primaryRingOutlines(prim: PrimarySchema, circleSegments = 32): Point[][] {
+export function primaryRingOutlines(prim: PrimarySchema, circleSegments = 32): RingOutline[] {
   const { r, z, circular } = primaryCrossSectionHalfExtent(prim);
-  return primaryRingCenters(prim).map(([cx, cz]) => {
+  const { centers, fractions } = primaryRings(prim);
+  return centers.map(([cx, cz], i) => {
+    let outline: Point[];
     if (circular) {
-      const pts: Point[] = [];
-      for (let i = 0; i < circleSegments; i++) {
-        const a = (2 * Math.PI * i) / circleSegments;
-        pts.push([cx + r * Math.cos(a), cz + r * Math.sin(a)]);
+      outline = [];
+      for (let k = 0; k < circleSegments; k++) {
+        const a = (2 * Math.PI * k) / circleSegments;
+        outline.push([cx + r * Math.cos(a), cz + r * Math.sin(a)]);
       }
-      return pts;
+    } else {
+      outline = [
+        [cx - r, cz - z],
+        [cx + r, cz - z],
+        [cx + r, cz + z],
+        [cx - r, cz + z],
+      ];
     }
-    return [
-      [cx - r, cz - z],
-      [cx + r, cz - z],
-      [cx + r, cz + z],
-      [cx - r, cz + z],
-    ];
+    return { outline, fraction: fractions[i]! };
   });
 }
 

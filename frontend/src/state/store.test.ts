@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { defaultCoil } from '../domain/coil';
+import { pathEndpoints } from '../domain/paths';
 import { useEditorStore } from './store';
 
 const reset = () =>
@@ -108,17 +109,18 @@ describe('editor store', () => {
     store.select({ kind: 'secondary' });
     const before = useEditorStore.getState().coil.secondary;
 
+    const ends = (sec: typeof before) => pathEndpoints(sec.path);
     // Move right and up: both endpoints shift by the same delta.
     useEditorStore.getState().translateSelection(1.5, 2);
     let sec = useEditorStore.getState().coil.secondary;
-    expect(sec.start[0]).toBeCloseTo(before.start[0] + 1.5);
-    expect(sec.end[1]).toBeCloseTo(before.end[1] + 2);
+    expect(ends(sec).start[0]).toBeCloseTo(ends(before).start[0] + 1.5);
+    expect(ends(sec).end[1]).toBeCloseTo(ends(before).end[1] + 2);
 
     // A large leftward move stops the winding at the axis, never negative.
     useEditorStore.getState().translateSelection(-999, 0);
     sec = useEditorStore.getState().coil.secondary;
-    expect(sec.start[0]).toBeCloseTo(0);
-    expect(sec.end[0]).toBeCloseTo(0);
+    expect(ends(sec).start[0]).toBeCloseTo(0);
+    expect(ends(sec).end[0]).toBeCloseTo(0);
   });
 });
 
@@ -176,8 +178,11 @@ describe('right-half-plane clamp (r >= 0)', () => {
   beforeEach(reset);
 
   it('clamps a negative secondary r to the axis', () => {
-    useEditorStore.getState().updateSecondary({ start: [-5, 10] });
-    expect(useEditorStore.getState().coil.secondary.start).toEqual([0, 10]);
+    const path = useEditorStore.getState().coil.secondary.path;
+    useEditorStore.getState().updateSecondary({
+      path: { kind: 'line', start: [-5, 10], end: pathEndpoints(path).end },
+    });
+    expect(pathEndpoints(useEditorStore.getState().coil.secondary.path).start).toEqual([0, 10]);
   });
 
   it('clamps a negative topload center r', () => {

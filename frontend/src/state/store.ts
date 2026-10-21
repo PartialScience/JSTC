@@ -66,7 +66,9 @@ export interface FieldDrive {
   frequencyHz: number;
   primaryCurrent: number;
   referenceMode: 'floating' | 'grounded';
-  hotEnd: 'inner' | 'outer';
+  hotEnd: 'start' | 'end';
+  /** Draw a marker on the primary's hot end in the editor. */
+  showHotEnd: boolean;
 }
 
 export interface FieldDisplay {
@@ -79,7 +81,8 @@ export const DEFAULT_FIELD_DRIVE: FieldDrive = {
   frequencyHz: 0, // 0 = "use the coil's lower split mode" (resolved in the UI)
   primaryCurrent: 100,
   referenceMode: 'floating',
-  hotEnd: 'outer',
+  hotEnd: 'end',
+  showHotEnd: false,
 };
 
 export const DEFAULT_FIELD_DISPLAY: FieldDisplay = {

@@ -9,7 +9,8 @@
  * incremental (dr, dz) deltas and the store applies them.
  */
 import type { GeometrySchema } from '../api/client';
-import { isSelected, type Coil, type Point, type Selection } from '../domain/coil';
+import { isSelected, type Coil, type Selection } from '../domain/coil';
+import { pathControlPoints, translatePath } from '../domain/paths';
 import { translateShape } from './shapeOps';
 
 /** The smallest r among a shape's defining coordinates (circle center, or
@@ -26,10 +27,10 @@ function shapeMinR(shape: GeometrySchema): number {
 export function selectionMinR(coil: Coil, selection: Selection): number | null {
   let min = Infinity;
   if (isSelected(selection, { kind: 'secondary' })) {
-    min = Math.min(min, coil.secondary.start[0], coil.secondary.end[0]);
+    for (const p of pathControlPoints(coil.secondary.path)) min = Math.min(min, p[0]);
   }
   if (coil.primary && isSelected(selection, { kind: 'primary' })) {
-    min = Math.min(min, coil.primary.start[0], coil.primary.end[0]);
+    for (const p of pathControlPoints(coil.primary.path)) min = Math.min(min, p[0]);
   }
   coil.toploads.forEach((t, i) => {
     if (isSelected(selection, { kind: 'topload', index: i })) {
@@ -43,8 +44,6 @@ export function selectionMinR(coil: Coil, selection: Selection): number | null {
   });
   return Number.isFinite(min) ? min : null;
 }
-
-const shift = (p: Point, dr: number, dz: number): Point => [p[0] + dr, p[1] + dz];
 
 /**
  * Translate every selected component by (dr, dz) as one rigid group, clamping
@@ -66,8 +65,7 @@ export function translateComponents(
   const secondary = isSelected(selection, { kind: 'secondary' })
     ? {
         ...coil.secondary,
-        start: shift(coil.secondary.start, cdr, dz),
-        end: shift(coil.secondary.end, cdr, dz),
+        path: translatePath(coil.secondary.path, cdr, dz),
       }
     : coil.secondary;
 
@@ -75,8 +73,7 @@ export function translateComponents(
     coil.primary && isSelected(selection, { kind: 'primary' })
       ? {
           ...coil.primary,
-          start: shift(coil.primary.start, cdr, dz),
-          end: shift(coil.primary.end, cdr, dz),
+          path: translatePath(coil.primary.path, cdr, dz),
         }
       : coil.primary;
 

@@ -5,7 +5,7 @@
  */
 import { useEditorStore } from '../state/store';
 import { CursorList } from './CursorPanel';
-import { QuantityField, SelectField } from './fields';
+import { CheckboxField, QuantityField, SelectField } from './fields';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -93,9 +93,15 @@ export function FieldDrivePanel() {
           <SelectField
             label="hot end"
             value={drive.hotEnd}
-            options={['outer', 'inner']}
-            onChange={(hotEnd) => setDrive({ hotEnd: hotEnd as 'inner' | 'outer' })}
+            options={['end', 'start']}
+            onChange={(hotEnd) => setDrive({ hotEnd: hotEnd as 'start' | 'end' })}
             testId="drive-hotend"
+          />
+          <CheckboxField
+            label="show hot end"
+            value={drive.showHotEnd}
+            onChange={(showHotEnd) => setDrive({ showHotEnd })}
+            testId="drive-show-hotend"
           />
         </Section>
       )}

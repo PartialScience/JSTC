@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { newPrimary, newSecondary, newTopload, type Coil } from '../domain/coil';
+import { pathEndpoints } from '../domain/paths';
 import { selectionMinR, translateComponents } from './move';
 
 // A fixture coil with round, unit-agnostic coordinates (the classic example
@@ -23,6 +24,8 @@ function defaultCoil(): Coil {
     bc_right: null,
   };
 }
+
+const secEnds = (coil: Coil) => pathEndpoints(coil.secondary.path);
 
 const circleCenter = (coil: ReturnType<typeof defaultCoil>, i: number) => {
   const shape = coil.toploads[i]!.shape;
@@ -62,8 +65,8 @@ describe('translateComponents', () => {
       1,
       1,
     );
-    expect(moved.secondary.start).toEqual([3.27, 24]);
-    expect(moved.secondary.end).toEqual([3.27, 45.8]);
+    expect(secEnds(moved).start).toEqual([3.27, 24]);
+    expect(secEnds(moved).end).toEqual([3.27, 45.8]);
     expect(circleCenter(moved, 0)).toEqual([8.375, 49.8]);
     expect(moved.primary).toBe(coil.primary); // not selected
   });
@@ -72,10 +75,10 @@ describe('translateComponents', () => {
     const coil = defaultCoil();
     // A huge leftward drag: the secondary (min r 2.27) stops at the axis.
     const moved = translateComponents(coil, [{ kind: 'secondary' }], -10, 5);
-    expect(moved.secondary.start[0]).toBeCloseTo(0);
-    expect(moved.secondary.end[0]).toBeCloseTo(0);
+    expect(secEnds(moved).start[0]).toBeCloseTo(0);
+    expect(secEnds(moved).end[0]).toBeCloseTo(0);
     // z is unconstrained and moves the full amount.
-    expect(moved.secondary.start[1]).toBeCloseTo(28);
+    expect(secEnds(moved).start[1]).toBeCloseTo(28);
   });
 
   it('clamps a group by its leftmost member, preserving spacing', () => {
@@ -87,7 +90,7 @@ describe('translateComponents', () => {
       0,
     );
     // Group min r is the secondary at 2.27, so the clamped delta is -2.27.
-    expect(moved.secondary.start[0]).toBeCloseTo(0);
+    expect(secEnds(moved).start[0]).toBeCloseTo(0);
     expect(circleCenter(moved, 0)[0]).toBeCloseTo(7.375 - 2.27);
   });
 

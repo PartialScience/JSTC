@@ -1,55 +1,56 @@
 /**
  * Primary ring geometry — the editor/3-D view's copy of the solver's
- * `PrimarySpec.ring_centers()`.
+ * `PrimarySpec.ring_centers()` / `ring_turn_fractions()`.
  *
- * The physics reduces the primary to one coaxial ring per turn, spaced at the
- * turn-space midpoints along the winding centerline. That exact spacing feeds
- * the coupling vector, the primary self-inductance, and the electrostatic
- * grounded-ring solve, so the drawn rings must land in the SAME places or the
- * picture misrepresents what was solved. This function reproduces that
- * algorithm for the `LinearPrimarySpec` + `UniformTurnProfile` the editor can
- * build (a straight centerline, uniformly wound); a shared golden fixture
- * (`__fixtures__/primaryRings.json`, generated from the Python solver) pins the
- * two implementations together — see `primaryRings.test.ts` and the backend's
- * `test_primary_ring_fixture.py`.
+ * The physics reduces the primary to one coaxial ring per turn, spaced at
+ * the turn-space midpoints along the winding centerline (any path kind:
+ * line, arc, spline) and weighted by the fractional final turn. That exact
+ * spacing feeds the coupling vector, the primary self-inductance, and the
+ * electrostatic grounded-ring solve, so the drawn rings must land in the
+ * SAME places or the picture misrepresents what was solved. A shared golden
+ * fixture (`__fixtures__/primaryRings.json`, generated from the Python
+ * solver) pins the two implementations together — see
+ * `primaryRings.test.ts` and the backend's `test_primary_ring_fixture.py`.
  */
 import type { PrimarySchema } from '../api/client';
 import type { Point } from '../domain/coil';
+import { evaluatePath, evaluateTurns } from '../domain/paths';
 
-/**
- * Centerline (r, z) of each primary turn's equivalent coaxial ring, in the
- * coil's geometry units — identical to `PrimarySpec.ring_centers()`.
- *
- * Turn k occupies [k, k+1] in turn-space (the last turn possibly fractional)
- * and its ring sits at that interval's midpoint, located on the straight
- * centerline by inverting the (linear) turn function. Returns one point per
- * turn: `ceil(total_turns)` of them.
- */
-export function primaryRingCenters(primary: PrimarySchema): Point[] {
-  const { total_turns, t_min, t_max } = primary.turn_fxn;
-  const tMin = t_min ?? 0;
-  const tMax = t_max ?? 1;
-  const [sr, sz] = primary.start;
-  const [er, ez] = primary.end;
+export interface PrimaryRings {
+  /** Centerline (r, z) of each turn's equivalent coaxial ring. */
+  centers: Point[];
+  /** Fraction of a full turn each ring represents (1 except possibly the
+   *  final ring — the physics weights its flux linkage by this, and the
+   *  viewer fades it accordingly). */
+  fractions: number[];
+}
 
-  // Uniform winding: cumulative turns are linear in the curve parameter t,
-  // turns(t) = total_turns * (t - tMin) / (tMax - tMin). The curve (a line
-  // segment) runs over t ∈ [0, 1], so the winding's total turn count is
-  // turns(1). (Equals total_turns for the editor's default [0, 1] window.)
-  const turnsAt = (t: number) => (total_turns * (t - tMin)) / (tMax - tMin);
-  const total = turnsAt(1);
-  if (!(total > 0)) return [];
+/** Ring centers + turn fractions, identical to the solver's. */
+export function primaryRings(primary: PrimarySchema): PrimaryRings {
+  let path;
+  try {
+    path = evaluatePath(primary.path);
+  } catch {
+    return { centers: [], fractions: [] }; // transiently degenerate
+  }
+  const turns = evaluateTurns(primary.turn_fxn, path.length);
+  const total = turns.totalTurns;
+  if (!(total > 0)) return { centers: [], fractions: [] };
 
   const nRings = Math.ceil(total);
   const centers: Point[] = [];
+  const fractions: number[] = [];
   for (let k = 0; k < nRings; k++) {
     const midTurn = (k + Math.min(k + 1, total)) / 2;
-    // Invert turns(t) = midTurn for the curve parameter, then evaluate the
-    // straight centerline there (LineSegment.point_at is linear in t).
-    const t = tMin + (midTurn / total_turns) * (tMax - tMin);
-    centers.push([sr + t * (er - sr), sz + t * (ez - sz)]);
+    centers.push(path.pointAt(turns.inverse(midTurn)));
+    fractions.push(Math.min(k + 1, total) - k);
   }
-  return centers;
+  return { centers, fractions };
+}
+
+/** Centerline (r, z) of each primary turn's ring (see primaryRings). */
+export function primaryRingCenters(primary: PrimarySchema): Point[] {
+  return primaryRings(primary).centers;
 }
 
 /**

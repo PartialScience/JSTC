@@ -128,10 +128,13 @@ describe('coil file — lenient import', () => {
   });
 
   it('folds an imported coil onto the physical half-plane (r >= 0)', () => {
+    const base = blankCoil();
+    const path = { kind: 'line' as const, start: [-5, 10] as [number, number], end: [1, 20] as [number, number] };
     const text = JSON.stringify({
-      coil: { ...blankCoil(), secondary: { ...blankCoil().secondary, start: [-5, 10] } },
+      coil: { ...base, secondary: { ...base.secondary, path } },
     });
-    expect(parseSession(text).coil.secondary.start).toEqual([0, 10]);
+    const loaded = parseSession(text).coil.secondary.path;
+    expect(loaded.kind === 'line' && loaded.start).toEqual([0, 10]);
   });
 
   it('warns but still loads a file from a newer format version', () => {
@@ -157,5 +160,46 @@ describe('coil file — unrecognizable input', () => {
 
   it('throws on a JSON array', () => {
     expect(() => parseSession(JSON.stringify([1, 2, 3]))).toThrow(CoilFileError);
+  });
+});
+
+describe('v2 -> v3 migration (parametric paths)', () => {
+  it('converts winding start/end into a line path and drops the profile window', () => {
+    const text = JSON.stringify({
+      format: FILE_FORMAT,
+      version: 2,
+      coil: {
+        secondary: {
+          material: 'copper',
+          turn_fxn: { kind: 'uniform', total_turns: 100, t_min: 0, t_max: 1 },
+          start: [1, 2],
+          end: [1, 8],
+          wire_dia: 0.001,
+        },
+        primary: {
+          material: 'copper',
+          turn_fxn: { kind: 'uniform', total_turns: 8, t_min: 0, t_max: 1 },
+          cross_section: { kind: 'circular', diameter: 0.006 },
+          start: [2, 2],
+          end: [4, 2],
+          tank_capacitance: 1e-8,
+          lead_length: 0,
+          lead_dia: 0,
+        },
+        r_max: 10,
+        z_max: 15,
+        unit_scale: 1,
+        discretization_order: 20,
+      },
+      analysis: { secondary: {}, bundle: {} },
+      stale: false,
+    });
+    const loaded = parseSession(text);
+    expect(loaded.coil.secondary.path).toEqual({ kind: 'line', start: [1, 2], end: [1, 8] });
+    expect(loaded.coil.secondary.turn_fxn).toEqual({ kind: 'uniform', total_turns: 100 });
+    expect(loaded.coil.primary?.path).toEqual({ kind: 'line', start: [2, 2], end: [4, 2] });
+    // The fingerprint format changed, so cached outputs are dropped.
+    expect(loaded.analysis).toBeNull();
+    expect(loaded.stale).toBe(true);
   });
 });
