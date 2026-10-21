@@ -67,8 +67,8 @@ export const SCHEMA_PROVENANCE: Record<string, Provenance> = {
   // Arc and spline centerlines are new physics surface: not yet validated.
   'ArcPathSchema.kind': 'untrusted',
   'ArcPathSchema.start': 'untrusted',
+  'ArcPathSchema.mid': 'untrusted',
   'ArcPathSchema.end': 'untrusted',
-  'ArcPathSchema.radius': 'untrusted',
   'SplinePathSchema.kind': 'untrusted',
   'SplinePathSchema.points': 'untrusted',
 

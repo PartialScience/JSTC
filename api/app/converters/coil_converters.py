@@ -56,8 +56,8 @@ def path_from_schema(schema) -> UnitSpeedCurve:
     if isinstance(schema, LinePathSchema):
         return LineSegment(tuple(schema.start), tuple(schema.end))
     if isinstance(schema, ArcPathSchema):
-        return CircularArc.from_endpoints(
-            tuple(schema.start), tuple(schema.end), schema.radius
+        return CircularArc.from_three_points(
+            tuple(schema.start), tuple(schema.mid), tuple(schema.end)
         )
     if isinstance(schema, SplinePathSchema):
         return CatmullRomSpline(points=tuple(tuple(p) for p in schema.points))

@@ -85,6 +85,13 @@ function pathHandleDescriptors(path: PathSchema): Array<{
       vertexIndex: index,
     }));
   }
+  if (path.kind === 'arc') {
+    return [
+      { index: 0, world: pts[0]!, suffix: 'start', menuHandle: 'start' as const },
+      { index: 1, world: pts[1]!, suffix: 'mid', menuHandle: 'vertex' as const, vertexIndex: 1 },
+      { index: 2, world: pts[2]!, suffix: 'end', menuHandle: 'end' as const },
+    ];
+  }
   return [
     { index: 0, world: pts[0]!, suffix: 'start', menuHandle: 'start' as const },
     { index: 1, world: pts[1]!, suffix: 'end', menuHandle: 'end' as const },

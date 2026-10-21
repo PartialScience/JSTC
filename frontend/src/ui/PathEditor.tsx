@@ -14,24 +14,48 @@
  */
 import type { PathSchema } from '../api/client';
 import type { Point } from '../domain/coil';
-import { pathEndpoints } from '../domain/paths';
+import { pathControlPoints, pathEndpoints } from '../domain/paths';
 import { unvalidatedFeature } from '../domain/provenance';
 import { QuantityField, SelectField } from './fields';
 
 export type PathKind = PathSchema['kind'];
 const PATH_KINDS: readonly PathKind[] = ['line', 'arc', 'spline'];
 
+/** A gently-bent through point: the chord midpoint pushed off by 15% of
+ *  the chord on the left-normal side (visibly an arc, never collinear). */
+function bentMid(start: Point, end: Point): Point {
+  const dx = end[0] - start[0];
+  const dz = end[1] - start[1];
+  const chord = Math.hypot(dx, dz) || 1;
+  return [
+    (start[0] + end[0]) / 2 - (dz / chord) * 0.15 * chord,
+    (start[1] + end[1]) / 2 + (dx / chord) * 0.15 * chord,
+  ];
+}
+
+function collinear(a: Point, b: Point, c: Point): boolean {
+  const d = a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]);
+  const scale = Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), Math.hypot(c[0] - a[0], c[1] - a[1]), 1e-30);
+  return Math.abs(d) <= 1e-9 * scale * scale;
+}
+
 function convertPath(path: PathSchema, kind: PathKind): PathSchema {
   if (kind === path.kind) return path;
   const { start, end } = pathEndpoints(path);
   if (kind === 'line') return { kind: 'line', start, end };
   if (kind === 'arc') {
-    // A gentle default bend: radius = the chord length (bulge ~13% of chord)
-    const chord = Math.hypot(end[0] - start[0], end[1] - start[1]);
-    return { kind: 'arc', start, end, radius: chord || 1 };
+    // Reuse an existing interior point as the through point where one
+    // exists and isn't collinear; otherwise bend gently off the chord.
+    const pts = pathControlPoints(path);
+    const candidate = pts.length > 2 ? pts[Math.floor(pts.length / 2)]! : null;
+    const mid = candidate && !collinear(start, candidate, end) ? candidate : bentMid(start, end);
+    return { kind: 'arc', start, mid, end };
   }
-  // spline through the endpoints and their midpoint - exactly straight until
-  // the user moves a point
+  // spline through the path's defining points (an arc's through point
+  // carries over; a line starts exactly straight via its midpoint)
+  if (path.kind === 'arc') {
+    return { kind: 'spline', points: [start, path.mid as Point, end] };
+  }
   const mid: Point = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2];
   return { kind: 'spline', points: [start, mid, end] };
 }
@@ -94,21 +118,14 @@ export function PathEditor({
           {pointRow('start', path.start as Point, `${prefix}-start`, (start) =>
             onChange({ ...path, start }),
           )}
+          {path.kind === 'arc' &&
+            pointRow('mid', path.mid as Point, `${prefix}-mid`, (mid) =>
+              onChange({ ...path, mid }),
+            )}
           {pointRow('end', path.end as Point, `${prefix}-end`, (end) =>
             onChange({ ...path, end }),
           )}
         </>
-      )}
-
-      {path.kind === 'arc' && (
-        <QuantityField
-          label="arc radius (± side)"
-          kind="length"
-          fieldId={`${prefix}-arc-radius`}
-          value={path.radius}
-          onCommit={(radius) => onChange({ ...path, radius })}
-          testId={`${prefix}-arc-radius`}
-        />
       )}
 
       {path.kind === 'spline' && (

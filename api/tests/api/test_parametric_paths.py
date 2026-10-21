@@ -40,32 +40,39 @@ def _payload(secondary_path, primary_path=None, secondary_turns=None):
 def test_arc_primary_converts():
     req = MatricesRequest.model_validate(_payload(
         {"kind": "line", "start": [2.0, 20.0], "end": [2.0, 40.0]},
-        primary_path={"kind": "arc", "start": [4.0, 20.0], "end": [9.0, 24.0], "radius": 6.0},
+        primary_path={"kind": "arc", "start": [4.0, 20.0], "mid": [6.2, 22.8], "end": [9.0, 24.0]},
     ))
     coil = coil_from_schema(req.coil)
     arc = coil.primary.curve
     assert isinstance(arc, CircularArc)
     assert arc.point_at(arc.t_min) == pytest.approx((4.0, 20.0))
     assert arc.point_at(arc.t_max) == pytest.approx((9.0, 24.0))
-    assert arc.curvature_at(0.0) == pytest.approx(1.0 / 6.0)  # positive: bends left
+    # The through point lies on the arc
+    assert arc.distance_to_curve((6.2, 22.8)) == pytest.approx(0.0, abs=1e-9)
     assert len(coil.primary.ring_centers()) == 9
 
 
-def test_negative_radius_bends_right():
-    req = MatricesRequest.model_validate(_payload(
-        {"kind": "line", "start": [2.0, 20.0], "end": [2.0, 40.0]},
-        primary_path={"kind": "arc", "start": [4.0, 20.0], "end": [9.0, 24.0], "radius": -6.0},
-    ))
-    coil = coil_from_schema(req.coil)
-    assert coil.primary.curve.curvature_at(0.0) == pytest.approx(-1.0 / 6.0)
+def test_arc_direction_follows_the_through_point():
+    """The same endpoints bend left or right depending on where mid sits."""
+    def arc_for(mid):
+        req = MatricesRequest.model_validate(_payload(
+            {"kind": "line", "start": [2.0, 20.0], "end": [2.0, 40.0]},
+            primary_path={"kind": "arc", "start": [4.0, 20.0], "mid": mid, "end": [9.0, 24.0]},
+        ))
+        return coil_from_schema(req.coil).primary.curve
+
+    # A through point left of the start->end direction bulges the arc left,
+    # putting the center on the right: clockwise, negative curvature.
+    assert arc_for([6.2, 22.8]).curvature_at(0.0) < 0
+    assert arc_for([6.8, 21.0]).curvature_at(0.0) > 0
 
 
-def test_arc_radius_below_half_chord_rejected():
+def test_collinear_arc_points_rejected():
     req = MatricesRequest.model_validate(_payload(
         {"kind": "line", "start": [2.0, 20.0], "end": [2.0, 40.0]},
-        primary_path={"kind": "arc", "start": [4.0, 20.0], "end": [9.0, 24.0], "radius": 1.0},
+        primary_path={"kind": "arc", "start": [4.0, 20.0], "mid": [6.5, 22.0], "end": [9.0, 24.0]},
     ))
-    with pytest.raises(ValueError, match="smaller than half the chord"):
+    with pytest.raises(ValueError, match="collinear"):
         coil_from_schema(req.coil)
 
 

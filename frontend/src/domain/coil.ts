@@ -194,6 +194,10 @@ function clampPathR(path: PathSchema): PathSchema {
     const start = clampR(next.start as Point);
     const end = clampR(next.end as Point);
     if (start !== next.start || end !== next.end) next = { ...next, start, end };
+    if (next.kind === 'arc') {
+      const mid = clampR(next.mid as Point);
+      if (mid !== next.mid) next = { ...next, mid };
+    }
   }
   // Repair path invariants (e.g. an arc radius made too small by an endpoint
   // drag) in the same mutation gate that enforces r >= 0.

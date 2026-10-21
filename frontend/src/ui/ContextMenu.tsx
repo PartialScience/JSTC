@@ -9,7 +9,7 @@ import { useState } from 'react';
 import type { GroundSchema, ToploadSchema } from '../api/client';
 import type { ComponentRef, Point } from '../domain/coil';
 import type { PathSchema } from '../api/client';
-import { withControlPoint } from '../domain/paths';
+import { pathControlPoints, withControlPoint } from '../domain/paths';
 import { useEditorStore } from '../state/store';
 import { convertShape, deleteVertex, insertVertex, type ShapeKind } from '../editor/shapeOps';
 
@@ -39,10 +39,11 @@ export function ContextMenu() {
     vertexIndex: number | null | undefined,
     p: Point,
   ): PathSchema => {
-    if (path.kind === 'spline' && vertexIndex != null) {
+    if (vertexIndex != null) {
       return withControlPoint(path, vertexIndex, p);
     }
-    return withControlPoint(path, handle === 'start' ? 0 : 1, p);
+    const last = pathControlPoints(path).length - 1;
+    return withControlPoint(path, handle === 'start' ? 0 : last, p);
   };
 
   // Lazily seed the point editor with the handle's current world position.

@@ -53,18 +53,20 @@ class LinePathSchema(BaseModel):
 
 
 class ArcPathSchema(BaseModel):
-    """A circular-arc centerline (the minor arc through start and end).
+    """A circular-arc centerline: the unique arc from ``start`` to ``end``
+    passing through ``mid``.
 
-    The SIGN of the radius picks the bend direction: positive bends left of
-    the start->end direction (center on the left, CCW), negative bends
-    right. |radius| must be at least half the chord length.
+    Three points on the arc (in traversal order) determine everything with
+    no sign conventions: the circle, the bend direction, and whether the
+    minor or major arc is taken. The points must not be collinear (a
+    straight centerline is a line path).
     """
     kind: Literal["arc"] = "arc"
     start: Tuple[float, float] = Field(..., description="Path start (r, z)")
-    end: Tuple[float, float] = Field(..., description="Path end (r, z)")
-    radius: float = Field(
-        ..., description="Signed arc radius (positive bends left of travel)"
+    mid: Tuple[float, float] = Field(
+        ..., description="A point the arc passes through, between start and end"
     )
+    end: Tuple[float, float] = Field(..., description="Path end (r, z)")
 
 
 class SplinePathSchema(BaseModel):

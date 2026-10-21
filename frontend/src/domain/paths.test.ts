@@ -7,7 +7,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  arcFromEndpoints,
+  arcFromThreePoints,
+  arcMidFromRadiusForm,
   evaluatePath,
   evaluateTurns,
   normalizePath,
@@ -21,7 +22,7 @@ const close = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol;
 describe('unit-speed parameterization', () => {
   const paths = [
     { kind: 'line' as const, start: [1, 2] as [number, number], end: [4, 6] as [number, number] },
-    { kind: 'arc' as const, start: [2, 0] as [number, number], end: [6, 2] as [number, number], radius: 5 },
+    { kind: 'arc' as const, start: [2, 0] as [number, number], mid: [4.2, 1.6] as [number, number], end: [6, 2] as [number, number] },
     {
       kind: 'spline' as const,
       points: [[0, 0], [1, 2], [3, 3], [5, 1]] as [number, number][],
@@ -46,29 +47,49 @@ describe('unit-speed parameterization', () => {
   });
 });
 
-describe('arc sign convention', () => {
-  it('positive radius bends left of travel (CCW, positive curvature)', () => {
-    const p = evaluatePath({ kind: 'arc', start: [0, 0], end: [2, 0], radius: 5 });
-    expect(p.curvatureAt(0)).toBeCloseTo(0.2, 12);
-    // Bulges away from the center (which sits on the left, +z): mid dips -z
-    expect(p.pointAt(p.length / 2)[1]).toBeLessThan(0);
+describe('three-point arc', () => {
+  it('passes through all three points, in order', () => {
+    const p = evaluatePath({ kind: 'arc', start: [2, 0], mid: [4, 1.5], end: [6, 0] });
+    const near = (q: [number, number]) => {
+      let best = Infinity;
+      for (let i = 0; i <= 400; i++) {
+        const pt = p.pointAt((p.length * i) / 400);
+        best = Math.min(best, Math.hypot(pt[0] - q[0], pt[1] - q[1]));
+      }
+      return best;
+    };
+    expect(p.pointAt(0)[0]).toBeCloseTo(2, 12);
+    expect(p.pointAt(0)[1]).toBeCloseTo(0, 12);
+    expect(near([4, 1.5])).toBeLessThan(1e-3);
+    expect(p.pointAt(p.length)[0]).toBeCloseTo(6, 9);
   });
 
-  it('negative radius bends right (CW, negative curvature)', () => {
-    const p = evaluatePath({ kind: 'arc', start: [0, 0], end: [2, 0], radius: -5 });
-    expect(p.curvatureAt(0)).toBeCloseTo(-0.2, 12);
-    expect(p.pointAt(p.length / 2)[1]).toBeGreaterThan(0);
+  it('the through point picks the bend direction', () => {
+    const up = evaluatePath({ kind: 'arc', start: [0, 0], mid: [1, 0.4], end: [2, 0] });
+    const down = evaluatePath({ kind: 'arc', start: [0, 0], mid: [1, -0.4], end: [2, 0] });
+    // Bulge up => center below => clockwise => negative curvature
+    expect(up.curvatureAt(0)).toBeLessThan(0);
+    expect(down.curvatureAt(0)).toBeGreaterThan(0);
   });
 
-  it('interpolates the endpoints exactly', () => {
-    const g = arcFromEndpoints([3, 1], [1, 4], -2.5);
-    const a0 = [g.center[0] + g.radius * Math.cos(g.angleStart), g.center[1] + g.radius * Math.sin(g.angleStart)];
-    expect(a0[0]).toBeCloseTo(3, 12);
-    expect(a0[1]).toBeCloseTo(1, 12);
+  it('supports major arcs (sweep beyond a semicircle)', () => {
+    // Points on the unit circle: start 0°, through 180°, end 270° -> 270° sweep
+    const g = arcFromThreePoints([1, 0], [-1, 0], [0, -1]);
+    expect(g.radius).toBeCloseTo(1, 12);
+    expect(Math.abs(g.angleEnd - g.angleStart)).toBeCloseTo((3 * Math.PI) / 2, 9);
   });
 
-  it('rejects a radius smaller than half the chord', () => {
-    expect(() => arcFromEndpoints([0, 0], [4, 0], 1)).toThrow();
+  it('rejects collinear points', () => {
+    expect(() => arcFromThreePoints([0, 0], [1, 1], [2, 2])).toThrow(/collinear/);
+  });
+
+  it('legacy radius-form arcs convert via their through point', () => {
+    // Old form: minor arc, positive radius = center left of travel
+    const mid = arcMidFromRadiusForm([0, 0], [2, 0], 5);
+    const g = arcFromThreePoints([0, 0], mid, [2, 0]);
+    expect(g.radius).toBeCloseTo(5, 9);
+    // Same bend as the old convention: center on the left (+z), bulge below
+    expect(mid[1]).toBeLessThan(0);
   });
 });
 
@@ -91,11 +112,6 @@ describe('turn profiles', () => {
 });
 
 describe('normalizePath', () => {
-  it('bumps an arc radius up to half the chord, preserving the sign', () => {
-    const fixed = normalizePath({ kind: 'arc', start: [0, 0], end: [4, 0], radius: -1 });
-    expect(fixed.kind === 'arc' && fixed.radius).toBeCloseTo(-2, 12);
-  });
-
   it('drops consecutive duplicate spline points', () => {
     const fixed = normalizePath({
       kind: 'spline',
@@ -105,7 +121,12 @@ describe('normalizePath', () => {
   });
 
   it('returns the identical object when nothing needs fixing', () => {
-    const path = { kind: 'arc' as const, start: [0, 0] as [number, number], end: [4, 0] as [number, number], radius: 3 };
+    const path = {
+      kind: 'arc' as const,
+      start: [0, 0] as [number, number],
+      mid: [2, 1] as [number, number],
+      end: [4, 0] as [number, number],
+    };
     expect(normalizePath(path)).toBe(path);
   });
 });

@@ -365,6 +365,21 @@
             "title": "Start",
             "description": "Path start (r, z)"
           },
+          "mid": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Mid",
+            "description": "A point the arc passes through, between start and end"
+          },
           "end": {
             "prefixItems": [
               {
@@ -379,21 +394,16 @@
             "minItems": 2,
             "title": "End",
             "description": "Path end (r, z)"
-          },
-          "radius": {
-            "type": "number",
-            "title": "Radius",
-            "description": "Signed arc radius (positive bends left of travel)"
           }
         },
         "type": "object",
         "required": [
           "start",
-          "end",
-          "radius"
+          "mid",
+          "end"
         ],
         "title": "ArcPathSchema",
-        "description": "A circular-arc centerline (the minor arc through start and end).\n\nThe SIGN of the radius picks the bend direction: positive bends left of\nthe start->end direction (center on the left, CCW), negative bends\nright. |radius| must be at least half the chord length."
+        "description": "A circular-arc centerline: the unique arc from ``start`` to ``end``\npassing through ``mid``.\n\nThree points on the arc (in traversal order) determine everything with\nno sign conventions: the circle, the bend direction, and whether the\nminor or major arc is taken. The points must not be collinear (a\nstraight centerline is a line path)."
       },
       "BoundaryConditionSchema": {
         "properties": {

@@ -69,7 +69,7 @@ export function evaluatePath(path: PathSchema): EvaluatedPath {
     case 'line':
       return evalLine(path.start as Point, path.end as Point);
     case 'arc':
-      return evalArc(path.start as Point, path.end as Point, path.radius);
+      return evalArc(path.start as Point, path.mid as Point, path.end as Point);
     case 'spline':
       return evalSpline(path.points as Point[]);
   }
@@ -79,8 +79,9 @@ export function evaluatePath(path: PathSchema): EvaluatedPath {
 export function pathControlPoints(path: PathSchema): Point[] {
   switch (path.kind) {
     case 'line':
-    case 'arc':
       return [path.start as Point, path.end as Point];
+    case 'arc':
+      return [path.start as Point, path.mid as Point, path.end as Point];
     case 'spline':
       return (path.points as Point[]).map((p) => [p[0], p[1]]);
   }
@@ -90,8 +91,13 @@ export function pathControlPoints(path: PathSchema): Point[] {
 export function withControlPoint(path: PathSchema, index: number, p: Point): PathSchema {
   switch (path.kind) {
     case 'line':
-    case 'arc':
       return index === 0 ? { ...path, start: p } : { ...path, end: p };
+    case 'arc':
+      return index === 0
+        ? { ...path, start: p }
+        : index === 1
+          ? { ...path, mid: p }
+          : { ...path, end: p };
     case 'spline': {
       const points = (path.points as Point[]).map((q, i) => (i === index ? p : q));
       return { ...path, points };
@@ -104,8 +110,14 @@ export function translatePath(path: PathSchema, dr: number, dz: number): PathSch
   const move = (p: Point): Point => [p[0] + dr, p[1] + dz];
   switch (path.kind) {
     case 'line':
-    case 'arc':
       return { ...path, start: move(path.start as Point), end: move(path.end as Point) };
+    case 'arc':
+      return {
+        ...path,
+        start: move(path.start as Point),
+        mid: move(path.mid as Point),
+        end: move(path.end as Point),
+      };
     case 'spline':
       return { ...path, points: (path.points as Point[]).map(move) };
   }
@@ -113,26 +125,13 @@ export function translatePath(path: PathSchema, dr: number, dz: number): PathSch
 
 /**
  * Repair a path's internal invariants after an edit (immutably; returns the
- * input when nothing needed fixing):
- *  * arc: |radius| is bumped up to half the chord when endpoint drags made
- *    it too small for any circle through both endpoints (sign preserved);
- *  * spline: consecutive duplicate points are dropped (keeping at least 2).
- * A line with coincident endpoints cannot be repaired meaningfully and is
- * returned as-is; rendering guards treat it as empty until the user drags
- * the points apart.
+ * input when nothing needed fixing): a spline's consecutive duplicate
+ * points are dropped (keeping at least 2). A line with coincident endpoints
+ * or an arc whose three points are collinear/coincident cannot be repaired
+ * meaningfully and is returned as-is; rendering guards treat those as empty
+ * until the user drags the points apart.
  */
 export function normalizePath(path: PathSchema): PathSchema {
-  if (path.kind === 'arc') {
-    const chord = Math.hypot(
-      path.end[0] - path.start[0],
-      path.end[1] - path.start[1],
-    );
-    const minR = chord / 2;
-    if (path.radius !== 0 && Math.abs(path.radius) < minR) {
-      return { ...path, radius: Math.sign(path.radius) * minR };
-    }
-    return path;
-  }
   if (path.kind === 'spline') {
     const pts = path.points as Point[];
     const dedup: Point[] = [];
@@ -175,8 +174,9 @@ function evalLine(start: Point, end: Point): EvaluatedPath {
 }
 
 // ---------------------------------------------------------------------------
-// Arc — mirror of CircularArc.from_endpoints (signed radius: positive bends
-// left of the start->end direction; minor arc)
+// Arc — mirror of CircularArc.from_three_points: the unique arc from start
+// to end passing through mid (three points fix the circle, the bend
+// direction, and minor/major sweep with no sign conventions)
 // ---------------------------------------------------------------------------
 
 export interface ArcGeometry {
@@ -186,31 +186,68 @@ export interface ArcGeometry {
   angleEnd: number; // decreasing range = clockwise traversal
 }
 
-export function arcFromEndpoints(start: Point, end: Point, radius: number): ArcGeometry {
+export function arcFromThreePoints(start: Point, mid: Point, end: Point): ArcGeometry {
+  const [ax, ay] = start;
+  const [mx, my] = mid;
+  const [bx, by] = end;
+  if ((ax === mx && ay === my) || (mx === bx && my === by) || (ax === bx && ay === by)) {
+    throw new Error('Arc points must be distinct');
+  }
+  // Circumcenter via the standard determinant form; d is 4x the signed
+  // triangle area, so |d| ~ 0 means collinear points.
+  const d = 2 * (ax * (my - by) + mx * (by - ay) + bx * (ay - my));
+  const scale = Math.max(
+    Math.hypot(mx - ax, my - ay),
+    Math.hypot(bx - mx, by - my),
+    Math.hypot(bx - ax, by - ay),
+  );
+  if (Math.abs(d) <= 1e-12 * scale * scale) {
+    throw new Error('Arc points are collinear; use a line path');
+  }
+  const aa = ax * ax + ay * ay;
+  const mm = mx * mx + my * my;
+  const bb = bx * bx + by * by;
+  const center: Point = [
+    (aa * (my - by) + mm * (by - ay) + bb * (ay - my)) / d,
+    (aa * (bx - mx) + mm * (ax - bx) + bb * (mx - ax)) / d,
+  ];
+  const radius = Math.hypot(ax - center[0], ay - center[1]);
+
+  const aS = Math.atan2(ay - center[1], ax - center[0]);
+  const aM = Math.atan2(my - center[1], mx - center[0]);
+  const aE = Math.atan2(by - center[1], bx - center[0]);
+  const twoPi = 2 * Math.PI;
+  const mod = (v: number) => ((v % twoPi) + twoPi) % twoPi;
+  const ccwToMid = mod(aM - aS);
+  const ccwToEnd = mod(aE - aS);
+  // Traveling CCW from start passes mid before end -> CCW; else CW.
+  const angleEnd = ccwToMid < ccwToEnd ? aS + ccwToEnd : aS - mod(aS - aE);
+  return { center, radius, angleStart: aS, angleEnd };
+}
+
+/** The through point of a legacy signed-radius arc (minor arc; positive
+ *  radius = center left of start->end). Used only to migrate old saved
+ *  files to the three-point form. */
+export function arcMidFromRadiusForm(start: Point, end: Point, radius: number): Point {
   const cx = end[0] - start[0];
   const cz = end[1] - start[1];
   const chord = Math.hypot(cx, cz);
-  if (chord === 0) throw new Error('Arc start and end must differ');
-  if (radius === 0) throw new Error('Arc radius must be non-zero');
-  const r = Math.abs(radius);
-  if (r < chord / 2) {
-    throw new Error('Arc radius is smaller than half the chord');
-  }
+  if (chord === 0 || radius === 0) throw new Error('Degenerate legacy arc');
+  const r = Math.max(Math.abs(radius), chord / 2);
   const side = radius > 0 ? 1 : -1;
-  const nx = -cz / chord;
-  const nz = cx / chord;
   const h = Math.sqrt(Math.max(r * r - (chord / 2) ** 2, 0));
   const center: Point = [
-    (start[0] + end[0]) / 2 + side * h * nx,
-    (start[1] + end[1]) / 2 + side * h * nz,
+    (start[0] + end[0]) / 2 + (side * h * -cz) / chord,
+    (start[1] + end[1]) / 2 + (side * h * cx) / chord,
   ];
   const angleStart = Math.atan2(start[1] - center[1], start[0] - center[0]);
   const sweep = 2 * Math.asin(Math.min(1, chord / (2 * r)));
-  return { center, radius: r, angleStart, angleEnd: angleStart + side * sweep };
+  const aMid = angleStart + (side * sweep) / 2;
+  return [center[0] + r * Math.cos(aMid), center[1] + r * Math.sin(aMid)];
 }
 
-function evalArc(start: Point, end: Point, signedRadius: number): EvaluatedPath {
-  const { center, radius, angleStart, angleEnd } = arcFromEndpoints(start, end, signedRadius);
+function evalArc(start: Point, mid: Point, end: Point): EvaluatedPath {
+  const { center, radius, angleStart, angleEnd } = arcFromThreePoints(start, mid, end);
   const dir = angleEnd > angleStart ? 1 : -1;
   const length = radius * Math.abs(angleEnd - angleStart);
   const angleAt = (s: number) => angleStart + (dir * s) / radius;

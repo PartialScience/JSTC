@@ -71,7 +71,7 @@ describe('schema provenance map', () => {
 
   it('reaches the schemas we expect (sanity)', () => {
     expect(keys).toContain('SecondaryConductorSchema.path');
-    expect(keys).toContain('ArcPathSchema.radius');
+    expect(keys).toContain('ArcPathSchema.mid');
     expect(keys).toContain('GradedTurnProfileSchema.points');
   });
 
@@ -113,7 +113,7 @@ describe('unvalidated feature registry', () => {
       ...coil,
       secondary: {
         ...coil.secondary,
-        path: { kind: 'arc', start: [1, 1], end: [1, 3], radius: 2 },
+        path: { kind: 'arc', start: [1, 1], mid: [1.8, 2] as [number, number], end: [1, 3] },
       },
     };
     expect(activeUnvalidatedFeatures(arcSecondary).map((f) => f.id)).toEqual([

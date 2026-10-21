@@ -36,49 +36,74 @@ class CircularArc(UnitSpeedCurve):
             )
 
     @classmethod
-    def from_endpoints(
+    def from_three_points(
         cls,
         start: tuple[float, float],
+        mid: tuple[float, float],
         end: tuple[float, float],
-        radius: float,
     ) -> "CircularArc":
-        """The minor arc from ``start`` to ``end`` with the given SIGNED
-        radius - the user-facing arc description (start point, end point,
-        radius), as the editor specifies it.
+        """The unique circular arc from ``start`` to ``end`` passing through
+        ``mid`` - the user-facing arc description (three points on the arc,
+        in traversal order).
 
-        Sign convention: positive radius places the center on the LEFT of
-        the start->end direction, so the path bends left (CCW, positive
-        curvature); negative radius bends right (CW). |radius| must be at
-        least half the chord length. The minor arc (sweep <= pi) is always
-        taken; larger sweeps are built from multiple arcs or a spline.
+        The through point fixes everything the signed-radius form could not
+        express without conventions: the circle (its circumcircle), the bend
+        direction, and whether the minor or major arc is taken (a sweep
+        beyond a semicircle simply follows from where ``mid`` sits).
+
+        Raises:
+            ValueError: when any two points coincide, or when the three
+                points are (numerically) collinear - a straight path is a
+                line, not an arc.
         """
         ax, ay = float(start[0]), float(start[1])
+        mx, my = float(mid[0]), float(mid[1])
         bx, by = float(end[0]), float(end[1])
-        cx_, cy_ = bx - ax, by - ay
-        chord = math.hypot(cx_, cy_)
-        if chord == 0.0:
-            raise ValueError("Arc start and end must differ")
-        r = abs(float(radius))
-        if radius == 0.0:
-            raise ValueError("Arc radius must be non-zero")
-        if r < chord / 2.0:
-            raise ValueError(
-                f"Arc radius {r} is smaller than half the chord ({chord / 2.0:.6g}); "
-                "no circle of that radius passes through both endpoints."
-            )
-        side = 1.0 if radius > 0 else -1.0
-        # Unit left normal of the start->end direction
-        nx, ny = -cy_ / chord, cx_ / chord
-        # Center: on the chosen side of the chord midpoint
-        h = math.sqrt(max(r * r - (chord / 2.0) ** 2, 0.0))
-        mx, my = (ax + bx) / 2.0, (ay + by) / 2.0
-        center = (mx + side * h * nx, my + side * h * ny)
+        for p, q, names in (
+            ((ax, ay), (mx, my), "start and mid"),
+            ((mx, my), (bx, by), "mid and end"),
+            ((ax, ay), (bx, by), "start and end"),
+        ):
+            if p == q:
+                raise ValueError(f"Arc {names} points must differ")
 
-        angle_start = math.atan2(ay - center[1], ax - center[0])
-        sweep = 2.0 * math.asin(min(1.0, chord / (2.0 * r)))
-        # Center on the left => bending left => CCW (increasing angles)
-        angle_end = angle_start + side * sweep
-        return cls(center=center, radius=r, angle_start=angle_start, angle_end=angle_end)
+        # Circumcenter via the standard determinant form; d is 4x the signed
+        # triangle area, so |d| ~ 0 means the points are collinear and the
+        # center computation would be pure cancellation noise.
+        d = 2.0 * (ax * (my - by) + mx * (by - ay) + bx * (ay - my))
+        scale = max(
+            math.hypot(mx - ax, my - ay),
+            math.hypot(bx - mx, by - my),
+            math.hypot(bx - ax, by - ay),
+        )
+        if abs(d) <= 1e-12 * scale * scale:
+            raise ValueError(
+                "Arc points are collinear; use a line path for a straight "
+                "centerline."
+            )
+        aa = ax * ax + ay * ay
+        mm = mx * mx + my * my
+        bb = bx * bx + by * by
+        center = (
+            (aa * (my - by) + mm * (by - ay) + bb * (ay - my)) / d,
+            (aa * (bx - mx) + mm * (ax - bx) + bb * (mx - ax)) / d,
+        )
+        radius = math.hypot(ax - center[0], ay - center[1])
+
+        a_s = math.atan2(ay - center[1], ax - center[0])
+        a_m = math.atan2(my - center[1], mx - center[0])
+        a_e = math.atan2(by - center[1], bx - center[0])
+
+        two_pi = 2.0 * math.pi
+        ccw_to_mid = (a_m - a_s) % two_pi
+        ccw_to_end = (a_e - a_s) % two_pi
+        if ccw_to_mid < ccw_to_end:
+            # Traveling CCW from start passes mid before end: CCW arc
+            angle_end = a_s + ccw_to_end
+        else:
+            # Otherwise the arc runs clockwise through mid
+            angle_end = a_s - ((a_s - a_e) % two_pi)
+        return cls(center=center, radius=radius, angle_start=a_s, angle_end=angle_end)
 
     # -- parameter/angle mapping ------------------------------------------------
 

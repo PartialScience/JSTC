@@ -194,11 +194,13 @@ export interface components {
         };
         /**
          * ArcPathSchema
-         * @description A circular-arc centerline (the minor arc through start and end).
+         * @description A circular-arc centerline: the unique arc from ``start`` to ``end``
+         *     passing through ``mid``.
          *
-         *     The SIGN of the radius picks the bend direction: positive bends left of
-         *     the start->end direction (center on the left, CCW), negative bends
-         *     right. |radius| must be at least half the chord length.
+         *     Three points on the arc (in traversal order) determine everything with
+         *     no sign conventions: the circle, the bend direction, and whether the
+         *     minor or major arc is taken. The points must not be collinear (a
+         *     straight centerline is a line path).
          */
         ArcPathSchema: {
             /**
@@ -215,6 +217,14 @@ export interface components {
                 number
             ];
             /**
+             * Mid
+             * @description A point the arc passes through, between start and end
+             */
+            mid: [
+                number,
+                number
+            ];
+            /**
              * End
              * @description Path end (r, z)
              */
@@ -222,11 +232,6 @@ export interface components {
                 number,
                 number
             ];
-            /**
-             * Radius
-             * @description Signed arc radius (positive bends left of travel)
-             */
-            radius: number;
         };
         /**
          * BoundaryConditionSchema

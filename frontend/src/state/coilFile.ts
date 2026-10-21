@@ -38,6 +38,7 @@ import type {
   ToploadSchema,
 } from '../api/client';
 import { blankCoil, clampToRightHalfPlane, type Coil } from '../domain/coil';
+import { arcMidFromRadiusForm } from '../domain/paths';
 import { normalizeUnitPrefs, type UnitPrefs } from '../units/units';
 
 /** Magic string identifying our files; import rejects anything else. */
@@ -249,9 +250,28 @@ function looksLikeCoil(v: unknown): v is Record<string, unknown> {
 /** Merge a raw coil over blank defaults so every required field exists even
  *  when the file omits it, then fold onto the physical half-plane (r >= 0). */
 /** Accept a winding object whose geometry is a path, or legacy/hand-written
- *  start/end (coerced to a line path); null when neither is usable. */
+ *  start/end (coerced to a line path); null when neither is usable. A
+ *  radius-form arc (the short-lived pre-release shape) is converted to the
+ *  three-point form via its through point. */
 function coerceWindingPath(w: Record<string, unknown>): Record<string, unknown> | null {
-  if (isObject(w.path) && typeof (w.path as { kind?: unknown }).kind === 'string') return w;
+  if (isObject(w.path) && typeof (w.path as { kind?: unknown }).kind === 'string') {
+    const path = w.path as { kind: string; start?: unknown; end?: unknown; mid?: unknown; radius?: unknown };
+    if (path.kind === 'arc' && path.mid == null && typeof path.radius === 'number') {
+      try {
+        const mid = arcMidFromRadiusForm(
+          path.start as [number, number],
+          path.end as [number, number],
+          path.radius,
+        );
+        const { radius, ...rest } = path;
+        void radius;
+        return { ...w, path: { ...rest, mid } };
+      } catch {
+        return null;
+      }
+    }
+    return w;
+  }
   if (Array.isArray(w.start) && Array.isArray(w.end)) {
     const { start, end, ...rest } = w;
     return { ...rest, path: { kind: 'line', start, end } };
