@@ -91,17 +91,17 @@ export function FieldDrivePanel() {
             testId="drive-reference"
           />
           <SelectField
-            label="hot end"
-            value={drive.hotEnd}
-            options={['end', 'start']}
-            onChange={(hotEnd) => setDrive({ hotEnd: hotEnd as 'start' | 'end' })}
-            testId="drive-hotend"
+            label="grounded end"
+            value={drive.groundedEnd}
+            options={['start', 'end']}
+            onChange={(groundedEnd) => setDrive({ groundedEnd: groundedEnd as 'start' | 'end' })}
+            testId="drive-grounded-end"
           />
           <CheckboxField
-            label="show hot end"
-            value={drive.showHotEnd}
-            onChange={(showHotEnd) => setDrive({ showHotEnd })}
-            testId="drive-show-hotend"
+            label="show grounded end"
+            value={drive.showGroundedEnd}
+            onChange={(showGroundedEnd) => setDrive({ showGroundedEnd })}
+            testId="drive-show-grounded-end"
           />
         </Section>
       )}

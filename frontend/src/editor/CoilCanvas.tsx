@@ -819,19 +819,21 @@ export function CoilCanvas() {
               onPatch={updatePrimary}
             />
           )}
-          {/* Hot-end marker: a dot on the primary winding end that carries
-              V_p in the field drive (toggled in the field panel; mirrored
-              like the geometry). */}
+          {/* Grounded-end marker: a dot on the primary winding end held
+              cold in the E-field drive (the other end carries V_p). Shown
+              only in the E-field view, where the setting means something;
+              mirrored like the geometry. */}
           {coil.primary &&
-            fieldDrive.showHotEnd &&
+            viewMode === 'efield' &&
+            fieldDrive.showGroundedEnd &&
             (() => {
               const { start, end } = pathEndpoints(coil.primary.path);
-              const hot = fieldDrive.hotEnd === 'start' ? start : end;
-              return [hot, [-hot[0], hot[1]] as Point].map((p, i) => {
+              const cold = fieldDrive.groundedEnd === 'start' ? start : end;
+              return [cold, [-cold[0], cold[1]] as Point].map((p, i) => {
                 const sp = toScreen(p[0], p[1]);
                 return (
                   <KonvaCircle
-                    key={`hot-end-${i}`}
+                    key={`grounded-end-${i}`}
                     x={sp.x}
                     y={sp.y}
                     radius={5}
@@ -839,7 +841,7 @@ export function CoilCanvas() {
                     stroke={colors.handleStroke}
                     strokeWidth={1.5}
                     listening={false}
-                    data-testid="hot-end-marker"
+                    data-testid="grounded-end-marker"
                   />
                 );
               });

@@ -13,7 +13,7 @@ import type {
   CoilSchema,
   FieldResponse,
   FieldType,
-  HotEnd,
+  GroundedEnd,
   ImpedanceResponse,
   MatrixBundle,
   ReferenceMode,
@@ -27,7 +27,7 @@ export interface FieldParams {
   frequencyHz: number;
   primaryCurrent: number;
   referenceMode: ReferenceMode;
-  hotEnd: HotEnd;
+  groundedEnd: GroundedEnd;
   gridNr: number;
   gridNz: number;
 }
@@ -220,7 +220,7 @@ export function useField(
       params.frequencyHz,
       params.primaryCurrent,
       params.referenceMode,
-      params.hotEnd,
+      params.groundedEnd,
       params.gridNr,
       params.gridNz,
     ],
@@ -238,7 +238,7 @@ export function useField(
           frequency_hz: params.frequencyHz,
           primary_current: params.primaryCurrent,
           reference_mode: params.referenceMode,
-          hot_end: params.hotEnd,
+          grounded_end: params.groundedEnd,
           grid_nr: params.gridNr,
           grid_nz: params.gridNz,
         },

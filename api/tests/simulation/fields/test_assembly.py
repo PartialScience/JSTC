@@ -70,7 +70,7 @@ class TestFloatingVsGrounded:
         b = _basis()
         v = np.array([1.0, 2.0])
         phi = assemble_electrostatic_field(b, v, primary_voltage=5.0,
-                                           reference_mode="grounded", hot_end="end")
+                                           reference_mode="grounded", grounded_end="start")
         expected = (np.tensordot(np.concatenate([[0], v]), b.tent_fields, axes=(0, 0))
                     + 5.0 * b.primary_profile_field)
         assert np.allclose(phi.real, expected)
@@ -83,24 +83,25 @@ class TestFloatingVsGrounded:
         # Recompute the net primary charge with the same offset formula.
         V = np.concatenate([[0], v])
         Q = b.primary_charges
-        Qd = Q[3]  # hot end -> Q_diff = Q_profile
+        Qd = Q[3]  # grounded start -> Q_diff = Q_profile
         offset = -(V @ Q[:3] + vp * Qd) / Q[4]
         net = V @ Q[:3] + vp * Qd + offset * Q[4]
         assert abs(net) < 1e-12
 
-    def test_hot_end_orientation_differs(self):
+    def test_grounded_end_orientation_differs(self):
         b = _basis()
         v = np.array([1.0, 2.0])
-        end_hot = assemble_electrostatic_field(b, v, primary_voltage=5.0, hot_end="end")
-        start_hot = assemble_electrostatic_field(b, v, primary_voltage=5.0, hot_end="start")
-        assert not np.allclose(end_hot, start_hot)
+        start_cold = assemble_electrostatic_field(b, v, primary_voltage=5.0, grounded_end="start")
+        end_cold = assemble_electrostatic_field(b, v, primary_voltage=5.0, grounded_end="end")
+        assert not np.allclose(start_cold, end_cold)
 
     def test_reversed_profile_is_uniform_minus_profile(self):
-        """The start-hot differential field equals u_uniform - u_profile."""
+        """Grounding the winding END means the START carries V_p: the
+        differential field equals u_uniform - u_profile."""
         b = _basis()
         v = np.zeros(2)  # isolate the primary contribution
         vp = 1.0
-        start_hot = assemble_electrostatic_field(b, v, primary_voltage=vp,
-                                                 reference_mode="grounded", hot_end="start")
+        end_cold = assemble_electrostatic_field(b, v, primary_voltage=vp,
+                                                reference_mode="grounded", grounded_end="end")
         expected = vp * (b.primary_uniform_field - b.primary_profile_field)
-        assert np.allclose(start_hot.real, expected)
+        assert np.allclose(end_cold.real, expected)

@@ -682,15 +682,15 @@
             "description": "Primary common-mode reference (E-field only)",
             "default": "floating"
           },
-          "hot_end": {
+          "grounded_end": {
             "type": "string",
             "enum": [
               "start",
               "end"
             ],
-            "title": "Hot End",
-            "description": "Which primary winding end carries V_p (E-field only)",
-            "default": "end"
+            "title": "Grounded End",
+            "description": "Which primary winding end is grounded/cold (E-field only); the opposite end carries V_p",
+            "default": "start"
           },
           "grid_nr": {
             "type": "integer",

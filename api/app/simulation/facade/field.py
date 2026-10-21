@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from app.simulation.facade.simulation import TeslaCoilSimulation
 
 ReferenceMode = Literal["floating", "grounded"]
-HotEnd = Literal["start", "end"]
+GroundedEnd = Literal["start", "end"]
 
 
 @dataclass
@@ -90,7 +90,7 @@ class FieldView:
         frequency_hz: float,
         primary_current: complex = 1.0,
         reference_mode: ReferenceMode = "floating",
-        hot_end: HotEnd = "end",
+        grounded_end: GroundedEnd = "start",
     ) -> FieldResult:
         coil = self._sim.coil
         grid = FieldGrid.over_domain(coil.r_max, coil.z_max, nr, nz)
@@ -104,7 +104,7 @@ class FieldView:
             drive.node_voltages,
             primary_voltage=drive.primary_voltage,
             reference_mode=reference_mode,
-            hot_end=hot_end,
+            grounded_end=grounded_end,
         )
         return FieldResult("electric", grid, phi, basis.mask, coil.unit_scale)
 

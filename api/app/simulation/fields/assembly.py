@@ -5,10 +5,11 @@ complex electrostatic potential of an energized coil.
     phi(r,z) = sum_k V_k u_k  +  V_p u_diff  +  offset u_uniform
 
 * V_k are the operating nodal voltages (V_0 = 0 at the grounded base).
-* u_diff is the primary's differential (0->V_p) field: the profile field
-  when the hot end is the winding END (the profile ascends from the curve
-  start), or (uniform - profile) when the hot end is the winding START (the
-  reversed profile is exactly 1 - p, so its field is u_uniform - u_profile).
+* u_diff is the primary's differential (0->V_p) field. The GROUNDED (cold)
+  end is named; the opposite end carries V_p. With the winding START
+  grounded, u_diff is the profile field (the profile ascends from the curve
+  start); with the END grounded, the reversed profile is exactly 1 - p, so
+  u_diff = u_uniform - u_profile.
 * offset is the primary common-mode: 0 for a grounded cold end, or the
   charge-neutral value for a floating primary,
       offset = -(sum_k V_k Q_k + V_p Q_diff) / Q_uniform,
@@ -23,7 +24,7 @@ import numpy as np
 from app.simulation.fields.electrostatic_basis import ElectrostaticFieldBasis
 
 ReferenceMode = Literal["floating", "grounded"]
-HotEnd = Literal["start", "end"]
+GroundedEnd = Literal["start", "end"]
 
 
 def assemble_electrostatic_field(
@@ -31,7 +32,7 @@ def assemble_electrostatic_field(
     node_voltages: np.ndarray,
     primary_voltage: complex = 0.0,
     reference_mode: ReferenceMode = "floating",
-    hot_end: HotEnd = "end",
+    grounded_end: GroundedEnd = "start",
 ) -> np.ndarray:
     """Assemble the complex operating potential on the grid.
 
@@ -41,7 +42,8 @@ def assemble_electrostatic_field(
             t_1..t_N (length N); the grounded base t_0 is prepended as 0.
         primary_voltage: the primary EMF V_p [V] (ignored without a primary).
         reference_mode: primary common-mode reference.
-        hot_end: which primary end carries V_p.
+        grounded_end: which primary winding end is grounded (cold); the
+            opposite end carries V_p.
 
     Returns:
         (nz, nr) complex array; cells outside the field domain are NaN.
@@ -64,7 +66,7 @@ def assemble_electrostatic_field(
         Q_prof = Q[n_tents]
         Q_unif = Q[n_tents + 1]
 
-        if hot_end == "start":
+        if grounded_end == "end":
             u_diff = u_unif - u_prof
             Q_diff = Q_unif - Q_prof
         else:

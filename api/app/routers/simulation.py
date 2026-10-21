@@ -148,7 +148,7 @@ def field(request: FieldRequest) -> FieldResponse:
             frequency_hz=request.frequency_hz,
             primary_current=request.primary_current,
             reference_mode=request.reference_mode,
-            hot_end=request.hot_end,
+            grounded_end=request.grounded_end,
         )
         quantity = "potential [V]"
     else:

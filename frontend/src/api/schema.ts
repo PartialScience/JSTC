@@ -421,12 +421,12 @@ export interface components {
              */
             reference_mode: "floating" | "grounded";
             /**
-             * Hot End
-             * @description Which primary winding end carries V_p (E-field only)
-             * @default end
+             * Grounded End
+             * @description Which primary winding end is grounded/cold (E-field only); the opposite end carries V_p
+             * @default start
              * @enum {string}
              */
-            hot_end: "start" | "end";
+            grounded_end: "start" | "end";
             /**
              * Grid Nr
              * @description Grid samples across r

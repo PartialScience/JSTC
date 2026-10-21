@@ -233,8 +233,10 @@ class FieldRequest(BaseModel):
     reference_mode: Literal["floating", "grounded"] = Field(
         "floating", description="Primary common-mode reference (E-field only)"
     )
-    hot_end: Literal["start", "end"] = Field(
-        "end", description="Which primary winding end carries V_p (E-field only)"
+    grounded_end: Literal["start", "end"] = Field(
+        "start",
+        description="Which primary winding end is grounded/cold (E-field "
+        "only); the opposite end carries V_p",
     )
     grid_nr: int = Field(120, ge=8, le=400, description="Grid samples across r")
     grid_nz: int = Field(180, ge=8, le=600, description="Grid samples across z")

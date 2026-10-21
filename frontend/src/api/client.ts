@@ -54,4 +54,4 @@ export type FieldRequest = components['schemas']['FieldRequest'];
 export type FieldResponse = components['schemas']['FieldResponse'];
 export type FieldType = FieldRequest['field_type'];
 export type ReferenceMode = NonNullable<FieldRequest['reference_mode']>;
-export type HotEnd = NonNullable<FieldRequest['hot_end']>;
+export type GroundedEnd = NonNullable<FieldRequest['grounded_end']>;

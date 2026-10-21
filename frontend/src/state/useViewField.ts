@@ -31,7 +31,7 @@ export function useViewField() {
       frequencyHz: effectiveFreq,
       primaryCurrent: drive.primaryCurrent,
       referenceMode: drive.referenceMode,
-      hotEnd: drive.hotEnd,
+      groundedEnd: drive.groundedEnd,
       gridNr: FIELD_GRID_NR,
       gridNz: FIELD_GRID_NZ,
     },
