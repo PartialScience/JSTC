@@ -14,7 +14,7 @@ from app.models.simulation_models import (
     BoundaryConditionType,
     SimulatableTeslaCoil,
 )
-from app.models.turn_profiles import UniformTurnProfile
+from app.models.turn_profiles import UniformTurns
 from app.schemas.component_schemas import (
     CircularCrossSectionSchema,
     RectangularCrossSectionSchema,
@@ -30,11 +30,11 @@ def material_from_schema(schema) -> Material:
     return _MATERIALS[schema.value]
 
 
-def turn_profile_from_schema(schema):
+def turn_distribution_from_schema(schema):
     if isinstance(schema, UniformTurnProfileSchema):
-        return UniformTurnProfile(
-            total_turns=schema.total_turns, t_min=schema.t_min, t_max=schema.t_max
-        )
+        # The schema's legacy t_min/t_max fields are ignored: the profile's
+        # domain is derived from the winding curve by the spec itself.
+        return UniformTurns(schema.total_turns)
     raise ValueError(f"Unknown turn profile schema: {type(schema).__name__}")
 
 
@@ -58,7 +58,7 @@ def boundary_condition_from_schema(schema) -> BoundaryCondition:
 def secondary_from_schema(schema) -> LinearSecondaryConductorSpec:
     return LinearSecondaryConductorSpec(
         material=material_from_schema(schema.material),
-        turn_fxn=turn_profile_from_schema(schema.turn_fxn),
+        turns=turn_distribution_from_schema(schema.turn_fxn),
         start=tuple(schema.start),
         end=tuple(schema.end),
         wire_dia=schema.wire_dia,
@@ -68,7 +68,7 @@ def secondary_from_schema(schema) -> LinearSecondaryConductorSpec:
 def primary_from_schema(schema) -> LinearPrimarySpec:
     return LinearPrimarySpec(
         material=material_from_schema(schema.material),
-        turn_fxn=turn_profile_from_schema(schema.turn_fxn),
+        turns=turn_distribution_from_schema(schema.turn_fxn),
         cross_section=cross_section_from_schema(schema.cross_section),
         start=tuple(schema.start),
         end=tuple(schema.end),

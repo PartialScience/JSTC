@@ -6,13 +6,13 @@ import pytest
 from app.geometry import Circle, CircularCrossSection
 from app.models.coil_models import LinearPrimarySpec
 from app.models.materials import Material
-from app.models.turn_profiles import UniformTurnProfile
+from app.models.turn_profiles import UniformTurns
 
 
 def _javatc_primary(**overrides):
     kwargs = dict(
         material=Material.COPPER,
-        turn_fxn=UniformTurnProfile(8.438),
+        turns=UniformTurns(8.438),
         cross_section=CircularCrossSection(diameter=0.25),
         tank_capacitance=0.0188e-6,
         lead_length=30.0,
@@ -53,7 +53,7 @@ class TestPrimarySpec:
     def test_vertical_helical_primary(self):
         """The same spec type expresses a helical (vertical) primary."""
         helical = _javatc_primary(start=(4.0, 20.0), end=(4.0, 26.0),
-                                  turn_fxn=UniformTurnProfile(6))
+                                  turns=UniformTurns(6))
         centers = helical.ring_centers()
         assert len(centers) == 6
         assert all(r == pytest.approx(4.0) for r, _ in centers)

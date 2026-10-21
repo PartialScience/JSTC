@@ -1,55 +1,94 @@
 """
-A wrapper that restricts an existing ParametricCurve to a sub-range [t1, t2].
+A wrapper that restricts an existing UnitSpeedCurve to a sub-range [t1, t2].
 """
+from dataclasses import dataclass
 
-from app.geometry.curves.base import ParametricCurve
+from app.geometry.curves.base import UnitSpeedCurve
 
 
-class SubCurve(ParametricCurve):
+@dataclass(frozen=True)
+class SubCurve(UnitSpeedCurve):
     """
-    A parametric curve that represents a portion of another curve,
-    restricted to the parameter range [t1, t2].
-
-    The parameter domain of the SubCurve is [t1, t2] (i.e. the same
-    parameterization as the parent curve, just clamped to the sub-range).
+    A portion of a unit-speed curve restricted to the parameter range
+    [t1, t2], in the SAME parameterization as the parent. Because the
+    parent's parameter is arc length, a sub-range of it is automatically
+    unit speed as well, so the contract is inherited for free.
     """
 
-    def __init__(self, parent_curve: ParametricCurve, t1: float, t2: float) -> None:
-        if t1 >= t2:
-            raise ValueError(f"t1 ({t1}) must be less than t2 ({t2})")
-        if t1 < parent_curve.t_min or t2 > parent_curve.t_max:
-            raise ValueError(
-                f"Sub-range [{t1}, {t2}] must be within the parent curve's "
-                f"range [{parent_curve.t_min}, {parent_curve.t_max}]"
+    parent_curve: UnitSpeedCurve
+    t1: float
+    t2: float
+
+    def __post_init__(self):
+        if not isinstance(self.parent_curve, UnitSpeedCurve):
+            raise TypeError(
+                "SubCurve requires a unit-speed parent; got "
+                f"{type(self.parent_curve).__name__}"
             )
-        self._parent_curve = parent_curve
-        self._t1 = t1
-        self._t2 = t2
-
-    @property
-    def parent_curve(self) -> ParametricCurve:
-        """The original curve this sub-curve is derived from."""
-        return self._parent_curve
+        if self.t1 >= self.t2:
+            raise ValueError(f"t1 ({self.t1}) must be less than t2 ({self.t2})")
+        if self.t1 < self.parent_curve.t_min or self.t2 > self.parent_curve.t_max:
+            raise ValueError(
+                f"Sub-range [{self.t1}, {self.t2}] must be within the parent "
+                f"curve's range [{self.parent_curve.t_min}, {self.parent_curve.t_max}]"
+            )
 
     @property
     def t_min(self) -> float:
-        return self._t1
+        return self.t1
 
     @property
     def t_max(self) -> float:
-        return self._t2
+        return self.t2
 
-    def point_at(self, t: float) -> tuple[float, ...]:
-        return self._parent_curve.point_at(t)
+    def point_at(self, t: float) -> tuple[float, float]:
+        return self.parent_curve.point_at(t)
 
-    def derivative_at(self, t: float) -> tuple[float, ...]:
-        """Delegate to the parent curve's derivative computation."""
-        return self._parent_curve.derivative_at(t)
+    def derivative_at(self, t: float) -> tuple[float, float]:
+        return self.parent_curve.derivative_at(t)
 
-    def arc_length_between(self, t1: float, t2: float) -> float:
-        """Delegate to the parent curve's range-based arc length computation."""
-        return self._parent_curve.arc_length_between(t1, t2)
+    def curvature_at(self, t: float) -> float:
+        return self.parent_curve.curvature_at(t)
 
-    def distance_to_curve_for_range(self, point: tuple[float, ...], t1: float, t2: float) -> float:
-        """Delegate to the parent curve's range-based distance computation."""
-        return self._parent_curve.distance_to_curve_for_range(point, t1, t2)
+    def max_abs_curvature(self) -> float:
+        """The parent's bound is valid (if conservative) for any sub-range."""
+        return self.parent_curve.max_abs_curvature()
+
+    def closest_parameter_in_range(
+        self, point: tuple[float, float], t1: float, t2: float
+    ) -> float:
+        lo = max(t1, self.t1)
+        hi = min(t2, self.t2)
+        return self.parent_curve.closest_parameter_in_range(point, lo, hi)
+
+    def _restrict(self, params: tuple[float, ...]) -> tuple[float, ...]:
+        """Slice a parent sampling (which includes t1 and t2 exactly) down
+        to this sub-range."""
+        return tuple(t for t in params if self.t1 <= t <= self.t2)
+
+    def sample_params(
+        self,
+        max_chord_error: float,
+        include: tuple[float, ...] = (),
+    ) -> tuple[float, ...]:
+        """Sample the parent with the sub-range endpoints forced, then keep
+        the slice between them: every kept interval is a full interval of
+        the parent's sampling, so the chord tolerance carries over exactly."""
+        parent_params = self.parent_curve.sample_params(
+            max_chord_error, include=(self.t1, self.t2, *include)
+        )
+        return self._restrict(parent_params)
+
+    def sample_params_for_offset(
+        self,
+        offset: float,
+        max_chord_error: float,
+        include: tuple[float, ...] = (),
+    ) -> tuple[float, ...]:
+        parent_params = self.parent_curve.sample_params_for_offset(
+            offset, max_chord_error, include=(self.t1, self.t2, *include)
+        )
+        return self._restrict(parent_params)
+
+    def canonical(self) -> tuple:
+        return ("sub", self.parent_curve.canonical(), self.t1, self.t2)

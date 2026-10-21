@@ -9,7 +9,7 @@ import pytest
 from app.converters import bundle_from_schema, bundle_to_schema, coil_from_schema
 from app.models.coil_models import LinearPrimarySpec, LinearSecondaryConductorSpec
 from app.models.materials import Material
-from app.models.turn_profiles import UniformTurnProfile
+from app.models.turn_profiles import UniformTurns
 from app.schemas import SimulatableTeslaCoilSchema
 from app.schemas.matrix_schemas import MatrixBundleSchema
 from app.simulation.facade.matrices import GeometricMatrixBundle
@@ -32,7 +32,7 @@ class TestCoilConversion:
 
         assert isinstance(coil.secondary, LinearSecondaryConductorSpec)
         assert coil.secondary.material is Material.COPPER
-        assert isinstance(coil.secondary.turn_fxn, UniformTurnProfile)
+        assert isinstance(coil.secondary.turns, UniformTurns)
         assert coil.secondary.total_turns == 895
         assert coil.unit_scale == pytest.approx(0.0254)
 

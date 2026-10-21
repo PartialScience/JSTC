@@ -15,7 +15,7 @@ from app.models.coil_models import (
     ToploadSpec,
 )
 from app.models.materials import Material
-from app.models.turn_profiles import UniformTurnProfile
+from app.models.turn_profiles import UniformTurns
 from app.geometry import Circle, CircularCrossSection, Rectangle
 
 
@@ -47,7 +47,7 @@ _DISC_HALF_THICKNESS = 0.03125
 JAVATC_EXAMPLE_COIL = dict(
     secondary=LinearSecondaryConductorSpec(
         material=Material.COPPER,
-        turn_fxn=UniformTurnProfile(895),
+        turns=UniformTurns(895),
         start=(2.26925, 23.0),
         end=(2.26925, 44.8085),
         wire_dia=0.020101,
@@ -70,7 +70,7 @@ JAVATC_EXAMPLE_COIL = dict(
     grounds=(),
     primary=LinearPrimarySpec(
         material=Material.COPPER,
-        turn_fxn=UniformTurnProfile(8.438),
+        turns=UniformTurns(8.438),
         cross_section=CircularCrossSection(diameter=0.25),
         tank_capacitance=0.0188e-6,
         lead_length=30.0,

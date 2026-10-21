@@ -5,7 +5,7 @@ import pytest
 from app.geometry import CircularCrossSection
 from app.models.coil_models import LinearPrimarySpec
 from app.models.materials import Material
-from app.models.turn_profiles import UniformTurnProfile
+from app.models.turn_profiles import UniformTurns
 from app.simulation.distributed_element_matrices.coupling import (
     primary_geometric_self_inductance,
     primary_voltage_profile,
@@ -15,7 +15,7 @@ from app.simulation.distributed_element_matrices.coupling import (
 def _primary(turns=8.0, r1=3.75, r2=7.969, z=23.0):
     return LinearPrimarySpec(
         material=Material.COPPER,
-        turn_fxn=UniformTurnProfile(turns),
+        turns=UniformTurns(turns),
         cross_section=CircularCrossSection(diameter=0.25),
         tank_capacitance=0.0188e-6,
         lead_length=30.0,

@@ -18,7 +18,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 from app.models.coil_models import LinearSecondaryConductorSpec
 from app.models.materials import Material
-from app.models.turn_profiles import UniformTurnProfile
+from app.models.turn_profiles import UniformTurns
 from app.models.simulation_models import SimulatableTeslaCoil
 from app.simulation.coil_discretizers.uniform_arclength_discretizer import UniformArcLengthDiscretizer
 from app.simulation.distributed_element_matrices.inductance import InductanceMatrixSolver, CoaxialRingInductanceLMatrixSolver
@@ -115,7 +115,7 @@ _SOLENOID_IDEALITY_TOL = 0.2
 
 IDEAL_SOLENOID = LinearSecondaryConductorSpec(
     material=Material.COPPER,
-    turn_fxn=UniformTurnProfile(_SOLENOID_TURNS),
+    turns=UniformTurns(_SOLENOID_TURNS),
     start=(_SOLENOID_RADIUS, 0.0),
     end=(_SOLENOID_RADIUS, _SOLENOID_LENGTH),
     wire_dia=0.01,

@@ -24,7 +24,7 @@ def run_warmup() -> float:
         from app.models.coil_models import LinearSecondaryConductorSpec
         from app.models.materials import Material
         from app.models.simulation_models import SimulatableTeslaCoil
-        from app.models.turn_profiles import UniformTurnProfile
+        from app.models.turn_profiles import UniformTurns
         from app.simulation.facade.simulation import TeslaCoilSimulation
 
         # A trivially small coil: a short solenoid in a small domain at low
@@ -33,7 +33,7 @@ def run_warmup() -> float:
         coil = SimulatableTeslaCoil(
             secondary=LinearSecondaryConductorSpec(
                 material=Material.COPPER,
-                turn_fxn=UniformTurnProfile(50),
+                turns=UniformTurns(50),
                 start=(1.0, 0.0),
                 end=(1.0, 10.0),
                 wire_dia=0.1,

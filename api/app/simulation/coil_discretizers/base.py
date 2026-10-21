@@ -42,6 +42,7 @@ class CoilDiscretizer(ConnectivityMatrixSolver):
 
         segments = tuple(
             SecondaryConductorSegment(
+                material=secondary.material,
                 full_secondary=secondary,
                 t1=slices[i],
                 t2=slices[i+1],

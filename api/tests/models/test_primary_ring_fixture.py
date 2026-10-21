@@ -31,7 +31,7 @@ import pytest
 from app.geometry import CircularCrossSection
 from app.models.coil_models import LinearPrimarySpec
 from app.models.materials import Material
-from app.models.turn_profiles import UniformTurnProfile
+from app.models.turn_profiles import UniformTurns
 
 # Repo-root-relative path to the fixture the frontend test imports.
 # api/tests/models/<this file>  ->  parents[3] == repo root.
@@ -44,12 +44,12 @@ FIXTURE_PATH = (
     / "primaryRings.json"
 )
 
-# Input cases spanning the primary shapes the editor can produce: flat
+# Input cases spanning the straight-centerline primary shapes: flat
 # spirals (horizontal), helices (vertical), saucers (slanted), reversed
 # winding direction, a single turn, many turns, an integer and a fractional
-# final turn, and a non-default turn-parameter window. Each is a straight
-# centerline wound uniformly - exactly what LinearPrimarySpec +
-# UniformTurnProfile represents, and all the UI can build.
+# final turn. Each is a straight centerline wound uniformly - what
+# LinearPrimarySpec + UniformTurns represents. (Curved paths and graded
+# turn distributions get their own fixture cases alongside the TS port.)
 CASES = [
     {"name": "javatc-flat-spiral", "start": [3.75, 23.0], "end": [7.969, 23.0], "total_turns": 8.438},
     {"name": "integer-flat-spiral", "start": [3.0, 10.0], "end": [7.0, 10.0], "total_turns": 8.0},
@@ -59,31 +59,13 @@ CASES = [
     {"name": "reversed-direction", "start": [8.0, 30.0], "end": [3.0, 30.0], "total_turns": 5.0},
     {"name": "many-turns", "start": [2.5, 0.0], "end": [12.5, 0.0], "total_turns": 24.0},
     {"name": "fractional-few", "start": [1.0, 1.0], "end": [4.0, 2.0], "total_turns": 3.75},
-    {
-        # A non-default turn-parameter window (the winding occupies only part
-        # of the curve's parameter range). The editor only ever builds [0, 1]
-        # windows, but the TS port mirrors the full algorithm, so pin one
-        # general case. t_max=0.8 keeps `total` cleanly fractional (8.75),
-        # away from any ceil() knife-edge.
-        "name": "partial-turn-window",
-        "start": [2.0, 40.0],
-        "end": [6.0, 40.0],
-        "total_turns": 7.0,
-        "t_min": 0.0,
-        "t_max": 0.8,
-    },
 ]
 
 
 def _spec(case: dict) -> LinearPrimarySpec:
-    profile = UniformTurnProfile(
-        case["total_turns"],
-        t_min=case.get("t_min", 0.0),
-        t_max=case.get("t_max", 1.0),
-    )
     return LinearPrimarySpec(
         material=Material.COPPER,
-        turn_fxn=profile,
+        turns=UniformTurns(case["total_turns"]),
         cross_section=CircularCrossSection(diameter=0.25),
         start=tuple(case["start"]),
         end=tuple(case["end"]),

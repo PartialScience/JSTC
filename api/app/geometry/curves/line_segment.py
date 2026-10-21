@@ -1,72 +1,87 @@
+"""
+Straight line segment, parameterized by arc length.
+"""
+from dataclasses import dataclass, field
 
-from app.geometry.curves.base import ParametricCurve
+from app.geometry.curves.base import UnitSpeedCurve
 
-class LineSegment(ParametricCurve):
+
+@dataclass(frozen=True)
+class LineSegment(UnitSpeedCurve):
+    """A straight segment from ``start`` to ``end``, parameterized by arc
+    length: t runs over [0, |end - start|] and point_at(t) advances t
+    geometry units along the segment. Every quantity is closed-form.
     """
-    Concrete parametric curve class for a line segment
-    """
-    
-    def __init__(self, start: tuple[float, float], end: tuple[float, float]) -> None:
-        """
-        Initialize a line segment with start and end points.
-        
-        Args:
-            start: A tuple of floats representing the coordinates of the start point
-            end: A tuple of floats representing the coordinates of the end point
-        """
-        self.start = start
-        self.end = end
-    
+
+    start: tuple[float, float]
+    end: tuple[float, float]
+
+    #: Derived (cached) quantities - excluded from equality/hashing.
+    _length: float = field(init=False, repr=False, compare=False, default=0.0)
+    _unit: tuple[float, float] = field(init=False, repr=False, compare=False, default=(0.0, 0.0))
+
+    def __post_init__(self):
+        dx = self.end[0] - self.start[0]
+        dy = self.end[1] - self.start[1]
+        length = (dx * dx + dy * dy) ** 0.5
+        if length == 0.0:
+            raise ValueError("LineSegment start and end must differ")
+        object.__setattr__(self, "_length", length)
+        object.__setattr__(self, "_unit", (dx / length, dy / length))
+
     @property
     def t_min(self) -> float:
-        """The minimum parameter value for the line segment."""
         return 0.0
 
     @property
     def t_max(self) -> float:
-        """The maximum parameter value for the line segment."""
-        return 1.0
-    
-    def point_at(self, t: float) -> tuple[float, float]:
-        """Get the point on the line segment corresponding to the parameter t."""
-        x = self.start[0] + t * (self.end[0] - self.start[0])
-        y = self.start[1] + t * (self.end[1] - self.start[1])
-        return (x, y)
-    
-    def derivative_at(self, t: float) -> tuple[float, float]:
-        """Get the tangent vector of the line segment (constant for all t)."""
-        return (self.end[0] - self.start[0], self.end[1] - self.start[1])
-    
-    def arc_length_between(self, t1: float, t2: float) -> float:
-        """Compute the arc length of the line segment between parameters t1 and t2."""        
-        # The length of the full line segment
-        full_length = ((self.end[0] - self.start[0]) ** 2 + (self.end[1] - self.start[1]) ** 2) ** 0.5
-        
-        # The arc length between t1 and t2 is proportional to the difference in parameters
-        return full_length * (t2 - t1)
-    
-    def closest_parameter_in_range(self, point: tuple[float, float], t1: float, t2: float) -> float:
-        """Exact closest parameter on the segment over [t1, t2].
+        return self._length
 
-        The nearest point on a line has the closed form
-        t_hat = <p - s1, s2 - s1> / ||s2 - s1||^2, clamped to [t1, t2].
-        Overrides the base class's coarse-sample-then-refine search, which
-        is far slower - and this projection is on the hot path (every
-        winding boundary DOF is projected to its parameter for the tent
-        profiles).
-        """
-        s1 = self.start
-        s2 = self.end
-        dx = s2[0] - s1[0]
-        dy = s2[1] - s1[1]
-        seg_len_sq = dx * dx + dy * dy
-        if seg_len_sq == 0.0:
-            return t1
-        t_hat = ((point[0] - s1[0]) * dx + (point[1] - s1[1]) * dy) / seg_len_sq
+    def point_at(self, t: float) -> tuple[float, float]:
+        return (
+            self.start[0] + t * self._unit[0],
+            self.start[1] + t * self._unit[1],
+        )
+
+    def derivative_at(self, t: float) -> tuple[float, float]:
+        """Unit tangent - constant along the segment."""
+        return self._unit
+
+    def curvature_at(self, t: float) -> float:
+        return 0.0
+
+    def max_abs_curvature(self) -> float:
+        return 0.0
+
+    def closest_parameter_in_range(
+        self, point: tuple[float, float], t1: float, t2: float
+    ) -> float:
+        """Exact closed form: the arc-length projection of the point onto
+        the segment's direction, clamped to [t1, t2]."""
+        t_hat = (
+            (point[0] - self.start[0]) * self._unit[0]
+            + (point[1] - self.start[1]) * self._unit[1]
+        )
         return min(max(t_hat, t1), t2)
 
-    def distance_to_curve_for_range(self, point: tuple[float, float], t1: float, t2: float) -> float:
-        """Provide the shortest distance from a given point to the line segment over [t1, t2]."""
-        t_star = self.closest_parameter_in_range(point, t1, t2)
-        nearest = self.point_at(t_star)
-        return ((point[0] - nearest[0]) ** 2 + (point[1] - nearest[1]) ** 2) ** 0.5
+    def sample_params(
+        self,
+        max_chord_error: float,
+        include: tuple[float, ...] = (),
+    ) -> tuple[float, ...]:
+        """A chord of a line has zero deviation: the endpoints plus any
+        interior include values are exact for every tolerance."""
+        interior = sorted(t for t in set(include) if self.t_min < t < self.t_max)
+        return (self.t_min, *interior, self.t_max)
+
+    def sample_params_for_offset(
+        self,
+        offset: float,
+        max_chord_error: float,
+        include: tuple[float, ...] = (),
+    ) -> tuple[float, ...]:
+        """The offset of a line is a parallel line - sampling is identical."""
+        return self.sample_params(max_chord_error, include)
+
+    def canonical(self) -> tuple:
+        return ("line", tuple(self.start), tuple(self.end))

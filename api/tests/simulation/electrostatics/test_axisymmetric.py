@@ -135,9 +135,14 @@ class TestSphereInLargeBox:
         C_geo ~= 2a with O(a/R) truncation error."""
         sphere = Circle(center=(0.0, 100.0), radius=1.0)
         (loop,) = sphere.boundary_loops()
+        # Sample well below the mesh size: the curve samplers are now
+        # exactly-at-tolerance (no hidden over-refinement), and a boundary
+        # polygon coarser than the near-field mesh is what would limit the
+        # accuracy here (the production solver samples at mesh_size/10 for
+        # the same reason).
         hole = ConductorHole(
-            vertices=tuple(loop.sample_polygon(1e-3)),
-            mesh_size=0.15,
+            vertices=tuple(loop.sample_polygon(3e-4)),
+            mesh_size=0.08,
         )
         spec = MeshSpec(r_max=100.0, z_max=200.0, conductors=(hole,), wall_mesh_size=25.0)
         geo = GmshMesher().mesh(spec)
