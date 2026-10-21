@@ -49,6 +49,12 @@ class TurnDistribution(ABC):
         """The cumulative turn profile over the arc-length domain [0, length]."""
         ...
 
+    @abstractmethod
+    def canonical(self) -> tuple:
+        """JSON-serializable exact description (type tag + defining
+        parameters), used for geometry fingerprints."""
+        ...
+
 
 @dataclass(frozen=True)
 class UniformTurns(TurnDistribution):
@@ -66,6 +72,9 @@ class UniformTurns(TurnDistribution):
 
     def profile_over(self, length: float) -> "UniformTurnProfile":
         return UniformTurnProfile(total_turns=self.turns, t_max=length)
+
+    def canonical(self) -> tuple:
+        return ("uniform", self.turns)
 
 
 @dataclass(frozen=True)
@@ -115,6 +124,9 @@ class GradedTurns(TurnDistribution):
             s_points=tuple(u * length for u, _ in self.points),
             n_points=tuple(n for _, n in self.points),
         )
+
+    def canonical(self) -> tuple:
+        return ("graded", self.points)
 
 
 # ---------------------------------------------------------------------------

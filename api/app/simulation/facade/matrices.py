@@ -79,22 +79,16 @@ def _canonical_region(region) -> object:
     ]]
 
 
-def _canonical_curve(curve, n: int = 8) -> list:
-    """Canonical sampling of a parametric curve (endpoints + interior)."""
-    ts = [curve.t_min + (curve.t_max - curve.t_min) * i / n for i in range(n + 1)]
-    return [list(curve.point_at(t)) for t in ts]
-
-
-def _canonical_turn_fxn(turn_fxn, curve, n: int = 8) -> list:
-    ts = [curve.t_min + (curve.t_max - curve.t_min) * i / n for i in range(n + 1)]
-    return [float(turn_fxn(t)) for t in ts]
-
-
 def geometry_fingerprint(
     coil: SimulatableTeslaCoil,
     cap_config: Tuple[Tuple[str, float], ...] = (),
 ) -> str:
     """Stable hash of every input the geometric matrices depend on.
+
+    Winding curves and turn distributions contribute their EXACT canonical
+    descriptions (type tag + defining parameters), not coarse samplings: a
+    sampled fingerprint can collide for two different parametric paths, and
+    a collision silently accepts a stale client-held matrix bundle.
 
     Deliberately EXCLUDES unit_scale, materials, tank_capacitance and lead
     geometry - the parameters a client may tweak without invalidating a
@@ -110,9 +104,9 @@ def geometry_fingerprint(
     sec = coil.secondary
     payload = {
         "secondary": {
-            "curve": _canonical_curve(sec.curve),
-            "offset": sec.geometry.offset,
-            "turns": _canonical_turn_fxn(sec.turn_fxn, sec.curve),
+            "curve": sec.curve.canonical(),
+            "wire_dia": sec.wire_dia,
+            "turns": sec.turns.canonical(),
         },
         "toploads": [_canonical_region(t._geometry()) for t in coil.toploads],
         "grounds": [_canonical_region(g._geometry()) for g in coil.grounds],
@@ -128,8 +122,8 @@ def geometry_fingerprint(
     if coil.primary is not None:
         prim = coil.primary
         payload["primary"] = {
-            "curve": _canonical_curve(prim.curve),
-            "turns": _canonical_turn_fxn(prim.turn_fxn, prim.curve),
+            "curve": prim.curve.canonical(),
+            "turns": prim.turns.canonical(),
             "cross_section": repr(prim.cross_section),
         }
 
