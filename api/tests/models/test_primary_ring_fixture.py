@@ -17,6 +17,10 @@ shared golden fixture instead:
   * ``frontend/src/editor/primaryRings.test.ts`` loads the SAME file and
     asserts its TypeScript ``primaryRingCenters()`` reproduces it.
 
+Each case is expressed as API-schema fragments (path + turn profile), the
+exact shapes both sides consume, and spans every path kind (line, arc,
+spline) and both turn-profile kinds (uniform, graded).
+
 If ``ring_centers()`` changes, this test fails until the fixture is
 regenerated (``JSTC_REGEN_RING_FIXTURE=1 pytest``); the regenerated
 fixture then fails the TS test until the TypeScript is updated to match.
@@ -27,11 +31,17 @@ import os
 from pathlib import Path
 
 import pytest
+from pydantic import TypeAdapter
 
+from app.converters.coil_converters import (
+    path_from_schema,
+    turn_distribution_from_schema,
+)
 from app.geometry import CircularCrossSection
-from app.models.coil_models import LinearPrimarySpec
+from app.models.coil_models import CurvePrimarySpec
 from app.models.materials import Material
-from app.models.turn_profiles import UniformTurnProfile
+from app.schemas.component_schemas import TurnProfileSchema
+from app.schemas.geometry_schemas import PathSchema
 
 # Repo-root-relative path to the fixture the frontend test imports.
 # api/tests/models/<this file>  ->  parents[3] == repo root.
@@ -44,49 +54,67 @@ FIXTURE_PATH = (
     / "primaryRings.json"
 )
 
-# Input cases spanning the primary shapes the editor can produce: flat
-# spirals (horizontal), helices (vertical), saucers (slanted), reversed
-# winding direction, a single turn, many turns, an integer and a fractional
-# final turn, and a non-default turn-parameter window. Each is a straight
-# centerline wound uniformly - exactly what LinearPrimarySpec +
-# UniformTurnProfile represents, and all the UI can build.
+# Input cases spanning every path kind and turn-profile kind the editor can
+# build: flat spirals, helices, saucers, reversed direction, single /
+# fractional / many turns, both arc bend directions, splines, and graded
+# density. Each case is the exact API-schema fragment pair the frontend
+# holds in its coil model.
 CASES = [
-    {"name": "javatc-flat-spiral", "start": [3.75, 23.0], "end": [7.969, 23.0], "total_turns": 8.438},
-    {"name": "integer-flat-spiral", "start": [3.0, 10.0], "end": [7.0, 10.0], "total_turns": 8.0},
-    {"name": "single-turn", "start": [2.0, 5.0], "end": [3.0, 5.0], "total_turns": 1.0},
-    {"name": "vertical-helix", "start": [4.0, 20.0], "end": [4.0, 26.0], "total_turns": 6.0},
-    {"name": "slanted-saucer", "start": [3.0, 12.0], "end": [9.0, 18.0], "total_turns": 10.0},
-    {"name": "reversed-direction", "start": [8.0, 30.0], "end": [3.0, 30.0], "total_turns": 5.0},
-    {"name": "many-turns", "start": [2.5, 0.0], "end": [12.5, 0.0], "total_turns": 24.0},
-    {"name": "fractional-few", "start": [1.0, 1.0], "end": [4.0, 2.0], "total_turns": 3.75},
-    {
-        # A non-default turn-parameter window (the winding occupies only part
-        # of the curve's parameter range). The editor only ever builds [0, 1]
-        # windows, but the TS port mirrors the full algorithm, so pin one
-        # general case. t_max=0.8 keeps `total` cleanly fractional (8.75),
-        # away from any ceil() knife-edge.
-        "name": "partial-turn-window",
-        "start": [2.0, 40.0],
-        "end": [6.0, 40.0],
-        "total_turns": 7.0,
-        "t_min": 0.0,
-        "t_max": 0.8,
-    },
+    {"name": "javatc-flat-spiral",
+     "path": {"kind": "line", "start": [3.75, 23.0], "end": [7.969, 23.0]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 8.438}},
+    {"name": "integer-flat-spiral",
+     "path": {"kind": "line", "start": [3.0, 10.0], "end": [7.0, 10.0]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 8.0}},
+    {"name": "single-turn",
+     "path": {"kind": "line", "start": [2.0, 5.0], "end": [3.0, 5.0]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 1.0}},
+    {"name": "vertical-helix",
+     "path": {"kind": "line", "start": [4.0, 20.0], "end": [4.0, 26.0]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 6.0}},
+    {"name": "slanted-saucer",
+     "path": {"kind": "line", "start": [3.0, 12.0], "end": [9.0, 18.0]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 10.0}},
+    {"name": "reversed-direction",
+     "path": {"kind": "line", "start": [8.0, 30.0], "end": [3.0, 30.0]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 5.0}},
+    {"name": "many-turns",
+     "path": {"kind": "line", "start": [2.5, 0.0], "end": [12.5, 0.0]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 24.0}},
+    {"name": "fractional-few",
+     "path": {"kind": "line", "start": [1.0, 1.0], "end": [4.0, 2.0]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 3.75}},
+    {"name": "arc-bend-up",
+     "path": {"kind": "arc", "start": [4.0, 20.0], "mid": [6.2, 22.8], "end": [9.0, 24.0]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 8.5}},
+    {"name": "arc-bend-down",
+     "path": {"kind": "arc", "start": [4.0, 20.0], "mid": [6.8, 21.0], "end": [9.0, 24.0]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 7.0}},
+    {"name": "arc-major-sweep",
+     # Through point placed so the arc takes the LONG way round (sweep > pi)
+     "path": {"kind": "arc", "start": [6.0, 20.0], "mid": [6.0, 26.0], "end": [3.4019237886466835, 24.5]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 9.25}},
+    {"name": "spline-qcw-ramp",
+     "path": {"kind": "spline", "points": [[3.5, 18.0], [5.5, 19.0], [7.0, 21.5], [7.5, 24.0]]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 12.0}},
+    {"name": "graded-flat-spiral",
+     "path": {"kind": "line", "start": [3.0, 10.0], "end": [9.0, 10.0]},
+     "turn_fxn": {"kind": "graded", "points": [[0.0, 0.0], [0.3, 6.0], [1.0, 10.0]]}},
+    {"name": "graded-spline",
+     "path": {"kind": "spline", "points": [[3.5, 18.0], [5.5, 19.0], [7.5, 22.0]]},
+     "turn_fxn": {"kind": "graded", "points": [[0.0, 0.0], [0.5, 2.0], [1.0, 9.5]]}},
 ]
 
+_PATH_ADAPTER = TypeAdapter(PathSchema)
+_TURNS_ADAPTER = TypeAdapter(TurnProfileSchema)
 
-def _spec(case: dict) -> LinearPrimarySpec:
-    profile = UniformTurnProfile(
-        case["total_turns"],
-        t_min=case.get("t_min", 0.0),
-        t_max=case.get("t_max", 1.0),
-    )
-    return LinearPrimarySpec(
+
+def _spec(case: dict) -> CurvePrimarySpec:
+    return CurvePrimarySpec(
         material=Material.COPPER,
-        turn_fxn=profile,
+        turns=turn_distribution_from_schema(_TURNS_ADAPTER.validate_python(case["turn_fxn"])),
         cross_section=CircularCrossSection(diameter=0.25),
-        start=tuple(case["start"]),
-        end=tuple(case["end"]),
+        path=path_from_schema(_PATH_ADAPTER.validate_python(case["path"])),
     )
 
 
@@ -100,7 +128,11 @@ def _expected_fixture() -> dict:
             "spacing identical to the solver's."
         ),
         "cases": [
-            {**case, "ring_centers": [[r, z] for r, z in _spec(case).ring_centers()]}
+            {
+                **case,
+                "ring_centers": [[r, z] for r, z in _spec(case).ring_centers()],
+                "ring_fractions": list(_spec(case).ring_turn_fractions()),
+            }
             for case in CASES
         ],
     }
@@ -128,3 +160,4 @@ def test_ring_fixture_matches_solver():
         for (er, ez), (ar, az) in zip(exp_centers, act_centers):
             assert er == pytest.approx(ar, abs=1e-9, rel=1e-9), expected["name"]
             assert ez == pytest.approx(az, abs=1e-9, rel=1e-9), expected["name"]
+        assert expected["ring_fractions"] == pytest.approx(actual["ring_fractions"])

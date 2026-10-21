@@ -19,10 +19,12 @@ from .visualization import visualize_region
 
 from .curves import (
     ParametricCurve,
+    UnitSpeedCurve,
     LineSegment,
     SubCurve,
     CircularArc,
     OffsetCurve,
+    CatmullRomSpline,
 )
 
 from .boundary import BoundaryLoop, BoundaryPiece
@@ -44,10 +46,12 @@ __all__ = [
     'OffsetRegion',
     # Curves
     'ParametricCurve',
+    'UnitSpeedCurve',
     'LineSegment',
     'SubCurve',
     'CircularArc',
     'OffsetCurve',
+    'CatmullRomSpline',
     # Boundary description
     'BoundaryLoop',
     'BoundaryPiece',

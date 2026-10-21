@@ -7,9 +7,10 @@ domain coil the solvers expect, and that the matrix bundle round-trips.
 import pytest
 
 from app.converters import bundle_from_schema, bundle_to_schema, coil_from_schema
-from app.models.coil_models import LinearPrimarySpec, LinearSecondaryConductorSpec
+from app.geometry import LineSegment
+from app.models.coil_models import CurvePrimarySpec, CurveSecondaryConductorSpec
 from app.models.materials import Material
-from app.models.turn_profiles import UniformTurnProfile
+from app.models.turn_profiles import UniformTurns
 from app.schemas import SimulatableTeslaCoilSchema
 from app.schemas.matrix_schemas import MatrixBundleSchema
 from app.simulation.facade.matrices import GeometricMatrixBundle
@@ -30,13 +31,15 @@ class TestCoilConversion:
         schema = SimulatableTeslaCoilSchema.model_validate(JAVATC_COIL_PAYLOAD)
         coil = coil_from_schema(schema)
 
-        assert isinstance(coil.secondary, LinearSecondaryConductorSpec)
+        assert isinstance(coil.secondary, CurveSecondaryConductorSpec)
+        assert isinstance(coil.secondary.curve, LineSegment)
         assert coil.secondary.material is Material.COPPER
-        assert isinstance(coil.secondary.turn_fxn, UniformTurnProfile)
+        assert isinstance(coil.secondary.turns, UniformTurns)
         assert coil.secondary.total_turns == 895
         assert coil.unit_scale == pytest.approx(0.0254)
 
-        assert isinstance(coil.primary, LinearPrimarySpec)
+        assert isinstance(coil.primary, CurvePrimarySpec)
+        assert isinstance(coil.primary.curve, LineSegment)
         assert coil.primary.total_turns == pytest.approx(8.438)
         assert coil.primary.cross_section.diameter == pytest.approx(0.25)
 
@@ -48,7 +51,7 @@ class TestCoilConversion:
         minimal = {
             "secondary": {
                 "turn_fxn": {"kind": "uniform", "total_turns": 100},
-                "start": [1.0, 0.0], "end": [1.0, 10.0], "wire_dia": 0.05,
+                "path": {"kind": "line", "start": [1.0, 0.0], "end": [1.0, 10.0]}, "wire_dia": 0.05,
             },
             "r_max": 50, "z_max": 50,
         }

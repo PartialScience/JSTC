@@ -93,12 +93,14 @@ function buildScene(coil: Coil, colors: ThemeColors): Scene {
   if (coil.primary) {
     const color = colors.materials[coil.primary.material].stroke;
     primaryRingOutlines(coil.primary, 20).forEach((ring, i) => {
-      track(ring);
+      track(ring.outline);
       meshes.push({
         key: `primary-ring-${i}`,
-        geometry: latheFromOutline(ring, 40),
+        geometry: latheFromOutline(ring.outline, 40),
         color,
-        opacity: 0.9,
+        // The fractional final turn is weighted by the solver, and faded
+        // here to say so.
+        opacity: ring.fraction < 1 ? 0.35 + 0.45 * ring.fraction : 0.9,
       });
     });
   }

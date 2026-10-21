@@ -67,7 +67,7 @@ class TestAnalyzeWithBundle:
     def test_primary_and_coupling_present(self, response):
         assert response.primary is not None
         assert response.coupling is not None
-        assert response.primary.resonant_frequency == pytest.approx(
+        assert response.primary.resonant_frequency.value == pytest.approx(
             JAVATC["primary_f_hz"], rel=0.01
         )
         assert response.coupling.mutual_inductance == pytest.approx(

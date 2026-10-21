@@ -3,7 +3,7 @@ from typing import List, Tuple
 
 from .base_geometric_region import GeometricRegion
 from app.geometry.boundary import BoundaryLoop, BoundaryPiece
-from app.geometry.curves.base import ParametricCurve
+from app.geometry.curves.base import ParametricCurve, UnitSpeedCurve
 from app.geometry.curves.circular_arc import CircularArc
 from app.geometry.curves.line_segment import LineSegment
 from app.geometry.curves.offset_curve import OffsetCurve
@@ -17,18 +17,36 @@ class OffsetRegion(
     parametric curve.
     """
 
-    def __init__(self, curve: ParametricCurve, offset: float, flat_start: bool = False, flat_end: bool = False):
+    def __init__(self, curve: UnitSpeedCurve, offset: float, flat_start: bool = False, flat_end: bool = False):
         """
-        Initialize an offset region with a parametric curve and an offset distance.
+        Initialize an offset region with a unit-speed curve and an offset distance.
 
         Args:
-            curve: A ParametricCurve object representing the central curve of the region
+            curve: The unit-speed central curve of the region.
             offset: A float representing the distance from the curve that defines the region
             flat_start: If True, the start endpoint cap is flat (perpendicular cut) instead of rounded
             flat_end: If True, the end endpoint cap is flat (perpendicular cut) instead of rounded
+
+        Raises:
+            ValueError: if offset is not positive, or if it reaches the
+                curve's minimum radius of curvature (the offset boundary
+                would self-intersect - physically, a conductor bent tighter
+                than its own radius).
         """
         if offset <= 0:
             raise ValueError(f"Offset must be positive, got {offset}")
+        if not isinstance(curve, UnitSpeedCurve):
+            raise TypeError(
+                f"OffsetRegion requires a unit-speed curve; got {type(curve).__name__}"
+            )
+        kappa_max = curve.max_abs_curvature()
+        if kappa_max > 0 and offset >= 1.0 / kappa_max:
+            raise ValueError(
+                f"Offset {offset} reaches the curve's minimum radius of "
+                f"curvature {1.0 / kappa_max:.6g}; the conductor envelope "
+                "would self-intersect. Increase the bend radius or reduce "
+                "the conductor diameter."
+            )
         self._flat_start = flat_start
         self._flat_end = flat_end
         self._curve = curve
@@ -39,7 +57,7 @@ class OffsetRegion(
         return self._offset
 
     @property
-    def curve(self) -> ParametricCurve:
+    def curve(self) -> UnitSpeedCurve:
         return self._curve
 
     @property

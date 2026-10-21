@@ -17,6 +17,7 @@ import { useEffect } from 'react';
 
 import type { ComponentRef, Point } from '../domain/coil';
 import { shapeCentroid } from '../editor/geometry';
+import { pathEndpoints } from '../domain/paths';
 import { useEditorStore, type EditorState } from './store';
 
 const CANVAS_SELECTOR = '[data-testid="coil-canvas"]';
@@ -43,9 +44,14 @@ function midpoint(a: Point, b: Point): Point {
  *  anchor (e.g. where "add vertex here" inserts). */
 function anchorWorld(state: EditorState, ref: ComponentRef): Point {
   const { coil } = state;
-  if (ref.kind === 'secondary') return midpoint(coil.secondary.start, coil.secondary.end);
-  if (ref.kind === 'primary' && coil.primary)
-    return midpoint(coil.primary.start, coil.primary.end);
+  if (ref.kind === 'secondary') {
+    const { start, end } = pathEndpoints(coil.secondary.path);
+    return midpoint(start, end);
+  }
+  if (ref.kind === 'primary' && coil.primary) {
+    const { start, end } = pathEndpoints(coil.primary.path);
+    return midpoint(start, end);
+  }
   if (ref.kind === 'topload') return shapeCentroid(coil.toploads[ref.index]!.shape);
   if (ref.kind === 'ground') return shapeCentroid(coil.grounds[ref.index]!.shape);
   return [0, 0];

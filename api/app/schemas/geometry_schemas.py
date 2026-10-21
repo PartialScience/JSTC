@@ -39,3 +39,45 @@ GeometrySchema = Annotated[
     Union[CircleSchema, RectangleSchema, PolygonSchema],
     Field(discriminator="kind"),
 ]
+
+
+# ---------------------------------------------------------------------------
+# Winding paths (centerlines in the (r, z) plane)
+# ---------------------------------------------------------------------------
+
+class LinePathSchema(BaseModel):
+    """A straight centerline from start to end."""
+    kind: Literal["line"] = "line"
+    start: Tuple[float, float] = Field(..., description="Path start (r, z)")
+    end: Tuple[float, float] = Field(..., description="Path end (r, z)")
+
+
+class ArcPathSchema(BaseModel):
+    """A circular-arc centerline: the unique arc from ``start`` to ``end``
+    passing through ``mid``.
+
+    Three points on the arc (in traversal order) determine everything with
+    no sign conventions: the circle, the bend direction, and whether the
+    minor or major arc is taken. The points must not be collinear (a
+    straight centerline is a line path).
+    """
+    kind: Literal["arc"] = "arc"
+    start: Tuple[float, float] = Field(..., description="Path start (r, z)")
+    mid: Tuple[float, float] = Field(
+        ..., description="A point the arc passes through, between start and end"
+    )
+    end: Tuple[float, float] = Field(..., description="Path end (r, z)")
+
+
+class SplinePathSchema(BaseModel):
+    """An interpolating centripetal Catmull-Rom spline through the points."""
+    kind: Literal["spline"] = "spline"
+    points: List[Tuple[float, float]] = Field(
+        ..., min_length=2, description="Interpolation points (r, z), in order"
+    )
+
+
+PathSchema = Annotated[
+    Union[LinePathSchema, ArcPathSchema, SplinePathSchema],
+    Field(discriminator="kind"),
+]

@@ -7,10 +7,12 @@ import type {
   CoilSchema,
   GeometrySchema,
   GroundSchema,
+  PathSchema,
   PrimarySchema,
   SecondarySchema,
   ToploadSchema,
 } from '../api/client';
+import { normalizePath } from './paths';
 
 export type Point = [number, number];
 
@@ -77,9 +79,8 @@ export function toggleRef(selection: Selection, ref: ComponentRef): Selection {
 export function newSecondary(start: Point, end: Point): SecondarySchema {
   return {
     material: 'copper',
-    turn_fxn: { kind: 'uniform', total_turns: 895, t_min: 0, t_max: 1 },
-    start,
-    end,
+    turn_fxn: { kind: 'uniform', total_turns: 895 },
+    path: { kind: 'line', start, end },
     wire_dia: 0.000508, // 0.02 in
   };
 }
@@ -87,10 +88,9 @@ export function newSecondary(start: Point, end: Point): SecondarySchema {
 export function newPrimary(start: Point, end: Point): PrimarySchema {
   return {
     material: 'copper',
-    turn_fxn: { kind: 'uniform', total_turns: 8.438, t_min: 0, t_max: 1 },
+    turn_fxn: { kind: 'uniform', total_turns: 8.438 },
     cross_section: { kind: 'circular', diameter: 0.00635 }, // 0.25 in
-    start,
-    end,
+    path: { kind: 'line', start, end },
     tank_capacitance: 1.88e-8, // absolute farads (never scaled by unit_scale)
     lead_length: 0.762, // 30 in
     lead_dia: 0.00508, // 0.2 in
@@ -185,6 +185,25 @@ function mapPreserve<T>(items: T[], fn: (item: T) => T): T[] {
   return changed ? out : items;
 }
 
+function clampPathR(path: PathSchema): PathSchema {
+  let next = path;
+  if (next.kind === 'spline') {
+    const points = mapPreserve(next.points as Point[], clampR);
+    if (points !== next.points) next = { ...next, points };
+  } else {
+    const start = clampR(next.start as Point);
+    const end = clampR(next.end as Point);
+    if (start !== next.start || end !== next.end) next = { ...next, start, end };
+    if (next.kind === 'arc') {
+      const mid = clampR(next.mid as Point);
+      if (mid !== next.mid) next = { ...next, mid };
+    }
+  }
+  // Repair path invariants (e.g. an arc radius made too small by an endpoint
+  // drag) in the same mutation gate that enforces r >= 0.
+  return normalizePath(next);
+}
+
 function clampShapeR(shape: GeometrySchema): GeometrySchema {
   if (shape.kind === 'circle') {
     const center = clampR(shape.center);
@@ -202,19 +221,15 @@ function clampConductorR<C extends ToploadSchema | GroundSchema>(conductor: C): 
 /** Fold every geometry coordinate onto the physical half-plane r >= 0.
  *  Returns the same coil object when nothing needed clamping. */
 export function clampToRightHalfPlane(coil: Coil): Coil {
-  const secStart = clampR(coil.secondary.start);
-  const secEnd = clampR(coil.secondary.end);
+  const secPath = clampPathR(coil.secondary.path);
   const secondary =
-    secStart === coil.secondary.start && secEnd === coil.secondary.end
-      ? coil.secondary
-      : { ...coil.secondary, start: secStart, end: secEnd };
+    secPath === coil.secondary.path ? coil.secondary : { ...coil.secondary, path: secPath };
 
   let primary = coil.primary;
   if (primary) {
-    const start = clampR(primary.start);
-    const end = clampR(primary.end);
-    if (start !== primary.start || end !== primary.end) {
-      primary = { ...primary, start, end };
+    const path = clampPathR(primary.path);
+    if (path !== primary.path) {
+      primary = { ...primary, path };
     }
   }
 

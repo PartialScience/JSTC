@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 
 import type {
+  ComputedValue,
   AnalysisResponse,
   CoilSchema,
   CouplingOutputs,
@@ -27,6 +28,7 @@ import type {
 } from '../api/client';
 import { useImpedance, useSpice } from '../api/simulation';
 import { useEditorStore } from '../state/store';
+import { activeUnvalidatedFeatures } from '../domain/provenance';
 import { useThemeColors } from '../theme';
 import {
   outputParts,
@@ -45,7 +47,7 @@ import { eng } from './format';
 // clickable unit) or a bespoke `fmt` (dimensionless: Q, k, %, °, turns/length).
 interface Field<T> {
   label: string;
-  get: (o: T) => number | null | undefined;
+  get: (o: T) => number | ComputedValue | null | undefined;
   kind?: QuantityKind;
   fmt?: (v: number) => string;
   testId?: string;
@@ -230,18 +232,65 @@ function Stat<T>({
   data: T | null | undefined;
   fieldId: string;
 }) {
-  const value = data == null ? null : field.get(data);
+  const raw = data == null ? null : field.get(data);
+  // A ComputedValue carries {value, reason}: null value means the formula's
+  // validity conditions failed for this coil, with reason saying why.
+  let value: number | null;
+  let reason: string | null = null;
+  if (raw != null && typeof raw === 'object') {
+    value = raw.value ?? null;
+    reason = raw.reason ?? null;
+  } else {
+    value = raw ?? null;
+  }
   const available = value != null && Number.isFinite(value);
+  if (!available && reason) {
+    return (
+      <div className="stat">
+        <div className="stat-label">{field.label}</div>
+        <div
+          className="stat-value stat-not-computed"
+          data-testid={field.testId}
+          title={reason}
+        >
+          Not computed
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="stat">
       <div className="stat-label">{field.label}</div>
       {available && field.kind ? (
-        <UnitValue value={value} kind={field.kind} fieldId={fieldId} testId={field.testId} />
+        <UnitValue value={value!} kind={field.kind} fieldId={fieldId} testId={field.testId} />
       ) : (
         <div className="stat-value" data-testid={field.testId}>
-          {available ? (field.fmt ? field.fmt(value) : String(value)) : '—'}
+          {available ? (field.fmt ? field.fmt(value!) : String(value)) : '—'}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Banner at the top of the results: which active settings engage physics
+ *  the community has not experimentally validated yet. Derived from the COIL
+ *  STATE via the provenance registry (domain/provenance.ts), so a collapsed
+ *  panel can never hide a warning and the wording matches the field badges. */
+function UnvalidatedBanner({ coil }: { coil: CoilSchema }) {
+  const active = activeUnvalidatedFeatures(coil as Parameters<typeof activeUnvalidatedFeatures>[0]);
+  if (active.length === 0) return null;
+  return (
+    <div className="unvalidated-banner" data-testid="unvalidated-banner" role="note">
+      <p>
+        Please note that some of the calculations being performed have not been
+        experimentally validated by the community yet. This is due to the
+        following settings:
+      </p>
+      <ul>
+        {active.map((f) => (
+          <li key={f.id}>{f.wording}</li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -616,6 +665,8 @@ export function Results({
           {errorMessage(error)}
         </div>
       )}
+
+      <UnvalidatedBanner coil={coil} />
 
       <div className="result-cards">
         <Card title="Secondary" fields={SECONDARY_FIELDS} data={analysis?.secondary} />

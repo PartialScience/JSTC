@@ -13,11 +13,23 @@ import type {
 import type { ComponentRef, Point } from '../domain/coil';
 import { isSelected, refKey } from '../domain/coil';
 import { convertShape, insertVertex, deleteVertex, type ShapeKind } from '../editor/shapeOps';
+import { evaluatePath } from '../domain/paths';
+import { DensityEditor } from './DensityEditor';
 import { FieldDrivePanel } from './FieldDrivePanel';
+import { PathEditor } from './PathEditor';
 import { useEditorStore } from '../state/store';
 import { NumberField, QuantityField, SelectField } from './fields';
 
 const MATERIALS: readonly MaterialSchema[] = ['copper', 'aluminum'];
+
+/** Arc length of a path, tolerating transiently-degenerate editor states. */
+function safePathLength(path: Parameters<typeof evaluatePath>[0]): number {
+  try {
+    return evaluatePath(path).length;
+  } catch {
+    return 0;
+  }
+}
 const SHAPE_KINDS: readonly ShapeKind[] = ['circle', 'rectangle', 'polygon'];
 
 function Section({
@@ -210,6 +222,8 @@ export function Sidebar() {
 
   const sec = coil.secondary;
   const prim = coil.primary;
+  const secPathLength = safePathLength(sec.path);
+  const primPathLength = prim ? safePathLength(prim.path) : 0;
 
   // Auto-scroll the single selected component's section into view. Only a
   // single selection scrolls; a bulk (marquee) selection leaves the scroll
@@ -247,22 +261,28 @@ export function Sidebar() {
 
       <Section title="Secondary" refTarget={{ kind: 'secondary' }}>
         <SelectField label="Material" value={sec.material} options={MATERIALS} onChange={(material) => updateSecondary({ material })} testId="sec-material" />
-        <NumberField label="turns" value={sec.turn_fxn.total_turns} min={0} onCommit={(total_turns) => updateSecondary({ turn_fxn: { ...sec.turn_fxn, total_turns } })} testId="sec-turns" />
-        <div className="field-row">
-          <QuantityField label="start r" kind="length" fieldId="sec-start-r" value={sec.start[0]} min={0} onCommit={(r) => updateSecondary({ start: [r, sec.start[1]] })} testId="sec-start-r" />
-          <QuantityField label="start z" kind="length" fieldId="sec-start-z" value={sec.start[1]} onCommit={(z) => updateSecondary({ start: [sec.start[0], z] })} testId="sec-start-z" />
-        </div>
-        <div className="field-row">
-          <QuantityField label="end r" kind="length" fieldId="sec-end-r" value={sec.end[0]} min={0} onCommit={(r) => updateSecondary({ end: [r, sec.end[1]] })} testId="sec-end-r" />
-          <QuantityField label="end z" kind="length" fieldId="sec-end-z" value={sec.end[1]} onCommit={(z) => updateSecondary({ end: [sec.end[0], z] })} testId="sec-end-z" />
-        </div>
+        <PathEditor path={sec.path} prefix="sec" winding="secondary" onChange={(path) => updateSecondary({ path })} />
+        <DensityEditor
+          turns={sec.turn_fxn}
+          pathLength={secPathLength}
+          prefix="sec"
+          winding="secondary"
+          onChange={(turn_fxn) => updateSecondary({ turn_fxn })}
+        />
         <QuantityField label="wire diameter" kind="length" fieldId="sec-wire-dia" value={sec.wire_dia} min={0} onCommit={(wire_dia) => updateSecondary({ wire_dia })} testId="sec-wire-dia" />
       </Section>
 
       {prim && (
         <Section title="Primary" refTarget={{ kind: 'primary' }} onRemove={removePrimary}>
           <SelectField label="Material" value={prim.material} options={MATERIALS} onChange={(material) => updatePrimary({ material })} testId="prim-material" />
-          <NumberField label="turns" value={prim.turn_fxn.total_turns} min={0} onCommit={(total_turns) => updatePrimary({ turn_fxn: { ...prim.turn_fxn, total_turns } })} testId="prim-turns" />
+          <PathEditor path={prim.path} prefix="prim" winding="primary" onChange={(path) => updatePrimary({ path })} />
+          <DensityEditor
+            turns={prim.turn_fxn}
+            pathLength={primPathLength}
+            prefix="prim"
+            winding="primary"
+            onChange={(turn_fxn) => updatePrimary({ turn_fxn })}
+          />
           <SelectField
             label="cross-section"
             value={prim.cross_section.kind}
@@ -285,14 +305,6 @@ export function Sidebar() {
               <QuantityField label="height" kind="length" fieldId="prim-height" value={prim.cross_section.height} min={0} onCommit={(height) => updatePrimary({ cross_section: { kind: 'rectangular', width: prim.cross_section.kind === 'rectangular' ? prim.cross_section.width : 0.0254, height } })} testId="prim-height" />
             </div>
           )}
-          <div className="field-row">
-            <QuantityField label="start r" kind="length" fieldId="prim-start-r" value={prim.start[0]} min={0} onCommit={(r) => updatePrimary({ start: [r, prim.start[1]] })} testId="prim-start-r" />
-            <QuantityField label="start z" kind="length" fieldId="prim-start-z" value={prim.start[1]} onCommit={(z) => updatePrimary({ start: [prim.start[0], z] })} testId="prim-start-z" />
-          </div>
-          <div className="field-row">
-            <QuantityField label="end r" kind="length" fieldId="prim-end-r" value={prim.end[0]} min={0} onCommit={(r) => updatePrimary({ end: [r, prim.end[1]] })} testId="prim-end-r" />
-            <QuantityField label="end z" kind="length" fieldId="prim-end-z" value={prim.end[1]} onCommit={(z) => updatePrimary({ end: [prim.end[0], z] })} testId="prim-end-z" />
-          </div>
           <QuantityField label="tank capacitance" kind="capacitance" fieldId="prim-tank" defaultUnit="nF" value={prim.tank_capacitance} min={0} onCommit={(tank_capacitance) => updatePrimary({ tank_capacitance })} testId="prim-tank" />
           <div className="field-row">
             <QuantityField label="lead length" kind="length" fieldId="prim-lead-len" value={prim.lead_length} onCommit={(lead_length) => updatePrimary({ lead_length })} testId="prim-lead-len" />

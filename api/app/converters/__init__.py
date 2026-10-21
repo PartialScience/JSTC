@@ -5,7 +5,7 @@ the domain/simulation layer.
 from .geometry_converters import geometry_from_schema
 from .coil_converters import (
     material_from_schema,
-    turn_profile_from_schema,
+    turn_distribution_from_schema,
     cross_section_from_schema,
     boundary_condition_from_schema,
     secondary_from_schema,
@@ -20,7 +20,7 @@ from .analysis_converters import build_analysis_response
 __all__ = [
     "geometry_from_schema",
     "material_from_schema",
-    "turn_profile_from_schema",
+    "turn_distribution_from_schema",
     "cross_section_from_schema",
     "boundary_condition_from_schema",
     "secondary_from_schema",

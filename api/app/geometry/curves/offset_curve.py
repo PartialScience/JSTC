@@ -1,104 +1,125 @@
 """
-Offset (parallel) curve of an arbitrary parametric curve.
+Offset (parallel) curve of a unit-speed parent curve.
 """
+from dataclasses import dataclass
 
-from app.geometry.curves.base import ParametricCurve
+from app.formulas.numerics import adaptive_cumulative_integral
+from app.geometry.curves.base import ParametricCurve, UnitSpeedCurve
 
 
+@dataclass(frozen=True)
 class OffsetCurve(ParametricCurve):
     """
-    The parallel curve at a signed offset distance from a parent curve:
+    The parallel curve at a signed offset distance from a unit-speed parent:
 
         offset_point(t) = parent(t) + offset * n_hat(t)
 
-    where n_hat is the parent's unit *left* normal (the unit tangent rotated
+    where n_hat is the parent's unit LEFT normal (the unit tangent rotated
     +90 degrees CCW). A positive offset therefore lies to the left of the
     direction of travel, a negative offset to the right.
 
-    This is a fully general implementation in terms of the ParametricCurve
-    abstraction - it works for any 2D parent curve. The one mathematical
-    constraint: |offset| must be smaller than the parent's minimum radius of
-    curvature, or the offset curve self-intersects. For coil geometry this
-    is guaranteed physically (wire radius << winding curvature); it is the
-    caller's responsibility otherwise.
+    THE DELIBERATE EXCEPTION to the unit-speed contract: this curve shares
+    its parent's parameter domain, so a parameter value t refers to
+    corresponding points on both curves. That correspondence is load-bearing
+    (winding slice parameters land on both sides of the conductor boundary,
+    and projections delegate to the parent), and it is mathematically
+    incompatible with unit speed - the offset's speed is |1 - offset * k(t)|
+    with k the parent's curvature. OffsetCurve is therefore a plain
+    ParametricCurve and can never be used as a winding centerline.
 
-    The parameter domain is shared with the parent curve, so a parameter
-    value t refers to corresponding points on both curves.
+    Validity requires |offset| below the parent's minimum radius of
+    curvature (1 - offset*k > 0 everywhere); OffsetRegion validates this
+    against the parent's max_abs_curvature at construction.
+
+    With the unit-speed parent every quantity is exact:
+        derivative  = (1 - offset*k) * T_hat   (Frenet, left-normal frame)
+        curvature   = k / (1 - offset*k)
+        arc length  = integral of (1 - offset*k) ds
     """
 
-    def __init__(self, parent: ParametricCurve, offset: float) -> None:
-        """
-        Initialize an offset curve.
+    parent: UnitSpeedCurve
+    offset: float
 
-        Args:
-            parent: The curve to offset from.
-            offset: Signed offset distance (positive = parent's left side).
-        """
-        if offset == 0:
+    def __post_init__(self):
+        if self.offset == 0:
             raise ValueError("Offset must be non-zero; use the parent curve instead")
-        self._parent = parent
-        self._offset = offset
-        # Step for the numerical derivative, scaled to the parameter domain
-        self._fd_step = (parent.t_max - parent.t_min) * 1e-6
-
-    @property
-    def parent(self) -> ParametricCurve:
-        """The curve this offset curve is derived from."""
-        return self._parent
-
-    @property
-    def offset(self) -> float:
-        """The signed offset distance from the parent curve."""
-        return self._offset
+        if not isinstance(self.parent, UnitSpeedCurve):
+            raise TypeError(
+                "OffsetCurve requires a unit-speed parent; got "
+                f"{type(self.parent).__name__}"
+            )
 
     @property
     def t_min(self) -> float:
-        return self._parent.t_min
+        return self.parent.t_min
 
     @property
     def t_max(self) -> float:
-        return self._parent.t_max
+        return self.parent.t_max
 
     def _unit_left_normal(self, t: float) -> tuple[float, float]:
-        """The parent's unit tangent rotated +90 degrees CCW."""
-        dx, dy = self._parent.derivative_at(t)
-        mag = (dx * dx + dy * dy) ** 0.5
-        if mag == 0.0:
-            raise ValueError(f"Parent curve has zero tangent at t={t}")
-        return (-dy / mag, dx / mag)
+        """The parent's unit tangent rotated +90 degrees CCW - exact, since
+        a unit-speed parent's derivative is already the unit tangent."""
+        dx, dy = self.parent.derivative_at(t)
+        return (-dy, dx)
 
     def point_at(self, t: float) -> tuple[float, float]:
-        """Get the point on the offset curve at parameter t."""
-        px, py = self._parent.point_at(t)
+        px, py = self.parent.point_at(t)
         nx, ny = self._unit_left_normal(t)
-        return (px + self._offset * nx, py + self._offset * ny)
+        return (px + self.offset * nx, py + self.offset * ny)
 
     def derivative_at(self, t: float) -> tuple[float, float]:
-        """
-        Tangent of the offset curve at parameter t.
+        """Exact tangent via the Frenet frame: (1 - offset*k(t)) * T_hat."""
+        tx, ty = self.parent.derivative_at(t)
+        scale = 1.0 - self.offset * self.parent.curvature_at(t)
+        return (scale * tx, scale * ty)
 
-        The exact tangent involves the parent's curvature (a second
-        derivative the ParametricCurve contract does not expose), so it is
-        computed by central finite differences of point_at. Accuracy is
-        ample for sampling, orientation and cap construction; a concrete
-        subclass with a known curvature can override with the closed form.
+    def curvature_at(self, t: float) -> float:
+        k = self.parent.curvature_at(t)
+        return k / (1.0 - self.offset * k)
+
+    def arc_length_between(self, t1: float, t2: float) -> float:
+        """Exact integral of the offset speed (1 - offset*k) ds.
+
+        For a constant-curvature parent (line, arc) this reduces to the
+        closed form immediately; for a spline parent the parent's exact
+        curvature is integrated with the owned adaptive Gauss-Legendre
+        machinery (no elementary closed form exists).
         """
-        h = self._fd_step
-        lo = max(t - h, self.t_min)
-        hi = min(t + h, self.t_max)
-        (x0, y0), (x1, y1) = self.point_at(lo), self.point_at(hi)
-        span = hi - lo
-        return ((x1 - x0) / span, (y1 - y0) / span)
+        k1 = self.parent.curvature_at(t1)
+        k2 = self.parent.curvature_at(0.5 * (t1 + t2))
+        if k1 == k2 == self.parent.curvature_at(t2):
+            return (t2 - t1) * (1.0 - self.offset * k1)
+
+        import numpy as np
+
+        def speed(ts: "np.ndarray") -> "np.ndarray":
+            return np.array(
+                [abs(1.0 - self.offset * self.parent.curvature_at(float(t))) for t in np.atleast_1d(ts)]
+            )
+
+        _, cum = adaptive_cumulative_integral(speed, t1, t2, rel_tol=1e-10)
+        return float(cum[-1])
 
     def closest_parameter_in_range(
         self, point: tuple[float, float], t1: float, t2: float
     ) -> float:
-        """
-        Delegate the closest-parameter search to the parent curve.
+        """Delegate to the parent: within the offset's tube of validity
+        (enforced at OffsetRegion construction) the normal projection onto
+        the parent and onto the offset curve identify the same parameter."""
+        return self.parent.closest_parameter_in_range(point, t1, t2)
 
-        For any point within the offset's tube of validity (|offset| below
-        the parent's radius of curvature - the same constraint the curve
-        itself requires), the normal projection onto the parent and onto
-        the offset curve identify the same parameter.
-        """
-        return self._parent.closest_parameter_in_range(point, t1, t2)
+    def sample_params(
+        self,
+        max_chord_error: float,
+        include: tuple[float, ...] = (),
+    ) -> tuple[float, ...]:
+        """Delegate to the parent's exact offset sampling - the parent knows
+        its parallel curves (a line's offset is a line, an arc's an arc, a
+        spline's follows from its curvature)."""
+        return self.parent.sample_params_for_offset(
+            self.offset, max_chord_error, include
+        )
+
+    def canonical(self) -> tuple:
+        return ("offset", self.parent.canonical(), self.offset)

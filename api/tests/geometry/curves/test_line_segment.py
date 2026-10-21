@@ -1,22 +1,21 @@
 """
-Tests for the LineSegment concrete curve class.
+Tests for the LineSegment concrete curve class (unit-speed: t is arc length).
 
 This file:
   - Registers LineSegment instances into the CURVE_INSTANCES registry so
-    the universal ParametricCurve property tests run against them.
+    the universal ParametricCurve/unit-speed contract tests run against them.
   - Contains LineSegment-specific tests for expected behaviour.
-
-Run with: pytest tests/geometry/curves/test_line_segment.py -v
 """
-import pytest
 import math
+
+import pytest
 
 from app.geometry.curves.line_segment import LineSegment
 
 
 # ---------------------------------------------------------------------------
 # Registry of LineSegment instances for the parameterized base-class tests.
-# These are imported by conftest.py and fed to the curve_instance fixture.
+# These are imported by conftest.py and fed to the curve fixtures.
 # ---------------------------------------------------------------------------
 
 LINE_SEGMENT_INSTANCES = [
@@ -25,114 +24,87 @@ LINE_SEGMENT_INSTANCES = [
         id="LineSegment-negative-to-positive",
     ),
     pytest.param(
-        LineSegment(start=(5, 5), end=(5, 5)),
-        id="LineSegment-degenerate-point",
-    ),
-    pytest.param(
         LineSegment(start=(10.5, -2.3), end=(-4.1, 7.8)),
         id="LineSegment-arbitrary-float",
+    ),
+    pytest.param(
+        LineSegment(start=(2.26925, 23.0), end=(2.26925, 44.8085)),
+        id="LineSegment-javatc-secondary",
     ),
 ]
 
 
-# ---------------------------------------------------------------------------
-# LineSegment ABC conformance (quick smoke-check)
-# ---------------------------------------------------------------------------
+class TestConstruction:
+    def test_rejects_degenerate_segment(self):
+        with pytest.raises(ValueError):
+            LineSegment(start=(5, 5), end=(5, 5))
 
-class TestLineSegmentABC:
-    """Quick subclass checks for LineSegment."""
+    def test_structural_equality(self):
+        a = LineSegment((0.0, 0.0), (3.0, 4.0))
+        b = LineSegment((0.0, 0.0), (3.0, 4.0))
+        c = LineSegment((0.0, 0.0), (3.0, 5.0))
+        assert a == b
+        assert hash(a) == hash(b)
+        assert a != c
 
-    def test_is_parametric_curve(self):
-        from app.geometry.curves.base import ParametricCurve
-        assert issubclass(LineSegment, ParametricCurve)
 
-
-# ---------------------------------------------------------------------------
-# LineSegment-specific tests
-# ---------------------------------------------------------------------------
-
-class TestLineSegmentProperties:
-    """Tests for LineSegment-specific behaviour and expected values."""
-
-    def test_t_range(self):
-        """LineSegment parameter domain is [0, 1]."""
-        seg = LineSegment(start=(0, 0), end=(1, 0))
+class TestGeometry:
+    def test_t_range_is_arc_length(self):
+        seg = LineSegment(start=(0, 0), end=(3, 4))
         assert seg.t_min == 0.0
-        assert seg.t_max == 1.0
+        assert seg.t_max == pytest.approx(5.0)
 
-    def test_point_at_start(self):
-        """point_at(0) must return the start point."""
+    def test_point_at_endpoints(self):
         seg = LineSegment(start=(2, 3), end=(8, 11))
+        length = math.hypot(6, 8)
         assert seg.point_at(0.0) == pytest.approx((2, 3))
+        assert seg.point_at(length) == pytest.approx((8, 11))
 
-    def test_point_at_end(self):
-        """point_at(1) must return the end point."""
-        seg = LineSegment(start=(2, 3), end=(8, 11))
-        assert seg.point_at(1.0) == pytest.approx((8, 11))
+    def test_point_at_advances_by_arc_length(self):
+        seg = LineSegment(start=(0, 0), end=(10, 0))
+        assert seg.point_at(2.5) == pytest.approx((2.5, 0.0))
+        assert seg.point_at(5.0) == pytest.approx((5.0, 0.0))
 
-    def test_point_at_midpoint(self):
-        """point_at(0.5) must return the midpoint of the segment."""
-        seg = LineSegment(start=(0, 0), end=(10, 6))
-        assert seg.point_at(0.5) == pytest.approx((5, 3))
+    def test_derivative_is_unit_tangent(self):
+        seg = LineSegment(start=(0, 0), end=(3, 4))
+        assert seg.derivative_at(1.0) == pytest.approx((0.6, 0.8))
 
-    @pytest.mark.parametrize("t,expected", [
-        (0.0, (0.0, 0.0)),
-        (0.25, (1.0, 0.0)),
-        (0.5, (2.0, 0.0)),
-        (0.75, (3.0, 0.0)),
-        (1.0, (4.0, 0.0)),
-    ])
-    def test_point_at_horizontal(self, t, expected):
-        """Verify known coordinates on a horizontal segment."""
-        seg = LineSegment(start=(0, 0), end=(4, 0))
-        assert seg.point_at(t) == pytest.approx(expected)
+    def test_zero_curvature(self):
+        seg = LineSegment(start=(0, 0), end=(3, 4))
+        assert seg.curvature_at(2.0) == 0.0
+        assert seg.max_abs_curvature() == 0.0
 
-    @pytest.mark.parametrize("t,expected", [
-        (0.0, (0.0, 0.0)),
-        (0.25, (0.0, 2.0)),
-        (0.5, (0.0, 4.0)),
-        (1.0, (0.0, 8.0)),
-    ])
-    def test_point_at_vertical(self, t, expected):
-        """Verify known coordinates on a vertical segment."""
-        seg = LineSegment(start=(0, 0), end=(0, 8))
-        assert seg.point_at(t) == pytest.approx(expected)
 
+class TestDistances:
     def test_distance_point_on_segment(self):
-        """Distance from a point lying on the segment should be 0."""
         seg = LineSegment(start=(0, 0), end=(4, 0))
         assert seg.distance_to_curve((2, 0)) == pytest.approx(0.0)
 
     def test_distance_perpendicular_offset(self):
-        """Distance from a point directly above the midpoint of a horizontal segment."""
         seg = LineSegment(start=(0, 0), end=(4, 0))
-        # Point (2, 3) is 3 units above the midpoint
         assert seg.distance_to_curve((2, 3)) == pytest.approx(3.0)
 
-    def test_distance_to_endpoint(self):
-        """Distance from a point beyond the segment end should be the Euclidean
-        distance to the nearest endpoint."""
+    def test_distance_beyond_endpoints(self):
         seg = LineSegment(start=(0, 0), end=(4, 0))
-        # Point (6, 0) is 2 units past the end
         assert seg.distance_to_curve((6, 0)) == pytest.approx(2.0)
-
-    def test_distance_to_start_point(self):
-        """Distance from a point behind the segment start."""
-        seg = LineSegment(start=(0, 0), end=(4, 0))
-        # Point (-3, 0) is 3 units before the start
         assert seg.distance_to_curve((-3, 0)) == pytest.approx(3.0)
 
     def test_distance_diagonal(self):
-        """Distance from a point to a diagonal segment, perpendicular case."""
         seg = LineSegment(start=(0, 0), end=(3, 4))
-        # The segment has length 5, direction (3/5, 4/5).
-        # Point (4, -3) projected onto the line gives t_hat that lies on [0,1],
-        # so the distance is the perpendicular distance.
-        # Line: 4x - 3y = 0 → distance = |4*4 - 3*(-3)| / 5 = 25/5 = 5
+        # Line: 4x - 3y = 0 -> distance = |4*4 - 3*(-3)| / 5 = 5
         assert seg.distance_to_curve((4, -3)) == pytest.approx(5.0)
 
-    def test_distance_degenerate_segment(self):
-        """Degenerate segment (single point) — distance should be Euclidean
-        distance to that point."""
-        seg = LineSegment(start=(1, 1), end=(1, 1))
-        assert seg.distance_to_curve((4, 5)) == pytest.approx(5.0)
+    def test_closest_parameter_is_arc_length_projection(self):
+        seg = LineSegment(start=(0, 0), end=(0, 10))
+        assert seg.closest_parameter((3.0, 7.0)) == pytest.approx(7.0)
+
+
+class TestSampling:
+    def test_sample_is_exact_with_two_points(self):
+        seg = LineSegment(start=(0, 0), end=(0, 10))
+        assert seg.sample_params(1e-9) == (0.0, 10.0)
+
+    def test_includes_inserted_exactly(self):
+        seg = LineSegment(start=(0, 0), end=(0, 10))
+        params = seg.sample_params(1e-9, include=(2.5, 7.0, -1.0, 50.0))
+        assert params == (0.0, 2.5, 7.0, 10.0)

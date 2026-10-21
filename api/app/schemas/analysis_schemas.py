@@ -40,6 +40,20 @@ class AnalyzeRequest(BaseModel):
 # Response sections
 # ---------------------------------------------------------------------------
 
+class ComputedValue(BaseModel):
+    """A derived output that is only valid under documented assumptions.
+
+    ``value`` is null when the assumptions do not hold for this coil, with
+    ``reason`` explaining why (chained through dependent values, e.g. "Q
+    could not be computed because it depends on Rac: ..."). The UI renders
+    null values as "Not computed" with the reason as a tooltip.
+    """
+    value: Optional[float] = None
+    reason: Optional[str] = Field(
+        None, description="Why the value was not computed (null when computed)"
+    )
+
+
 class SecondaryOutputs(BaseModel):
     resonant_frequency: float
     eigen_frequencies: List[float]
@@ -65,8 +79,8 @@ class SecondaryOutputs(BaseModel):
     reactance_at_resonance: float
     skin_depth: float
     dc_resistance: float
-    ac_resistance: float
-    quality_factor: float
+    ac_resistance: ComputedValue
+    quality_factor: ComputedValue
     wire_weight: float
 
 
@@ -105,10 +119,8 @@ class PrimaryOutputs(BaseModel):
     dc_inductance: float
     lead_inductance: float
     total_inductance: float
-    resonant_frequency: Optional[float] = Field(
-        None, description="Null when no tank capacitance is specified"
-    )
-    percent_detuned: Optional[float] = None
+    resonant_frequency: ComputedValue
+    percent_detuned: ComputedValue
     wire_length: float
     coil_pitch: float
     turn_spacing: float
@@ -119,9 +131,7 @@ class CouplingOutputs(BaseModel):
     mutual_inductance: float
     coupling_coefficient: float
     half_cycles_for_energy_transfer: float
-    energy_transfer_time: Optional[float] = Field(
-        None, description="Null when the primary tank frequency is undefined"
-    )
+    energy_transfer_time: ComputedValue
 
 
 class CoupledOutputs(BaseModel):
@@ -223,8 +233,10 @@ class FieldRequest(BaseModel):
     reference_mode: Literal["floating", "grounded"] = Field(
         "floating", description="Primary common-mode reference (E-field only)"
     )
-    hot_end: Literal["inner", "outer"] = Field(
-        "outer", description="Which primary end carries V_p (E-field only)"
+    grounded_end: Literal["start", "end"] = Field(
+        "start",
+        description="Which primary winding end is grounded/cold (E-field "
+        "only); the opposite end carries V_p",
     )
     grid_nr: int = Field(120, ge=8, le=400, description="Grid samples across r")
     grid_nz: int = Field(180, ge=8, le=600, description="Grid samples across z")

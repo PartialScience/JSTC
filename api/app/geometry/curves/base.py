@@ -1,29 +1,42 @@
 """
-Base class for all parametric curves
+Base classes for parametric curves.
+
+Two levels of contract:
+
+``ParametricCurve``
+    The minimal interface every curve-shaped object provides. Every method
+    is abstract: there are NO generic numeric fallbacks. If a curve's shape
+    is known there is always a better-than-generic algorithm for each of
+    these quantities, and concrete classes are required to supply it (see
+    LineSegment and CircularArc for fully closed-form examples, and
+    CatmullRomSpline for a curve that owns its deliberate numerics).
+
+``UnitSpeedCurve``
+    A ParametricCurve whose parameter IS arc length: t runs over
+    [t_min, t_max] in geometry units with |derivative_at(t)| == 1
+    everywhere. Every winding centerline must satisfy this contract - it is
+    what makes turn densities physically meaningful (turns per unit length),
+    makes discretization exact, and is enforced by the parameterized
+    contract test suite (tests/geometry/curves/test_unit_speed_contract.py).
+
+    The deliberate exception is OffsetCurve, which shares its parent's
+    parameter by construction (so winding slice parameters land on both
+    sides of the conductor boundary) and therefore cannot be unit speed.
+    It remains a plain ParametricCurve, so the type system prevents it from
+    ever being used as a winding centerline.
+
+Curvature sign convention (shared by every implementation): curvature is
+signed with respect to the LEFT normal of the direction of travel - the
+unit tangent rotated +90 degrees CCW. A CCW circular arc has positive
+curvature; its left normal points toward the center.
 """
 
 from abc import ABC, abstractmethod
-from bisect import insort
-
-from scipy.integrate import quad
-from scipy.optimize import minimize_scalar
 
 
 class ParametricCurve(ABC):
-    """Abstract base class for parametric curves.
-
-    Concrete curves must implement ``t_min``/``t_max``, ``point_at`` and
-    ``derivative_at``.  Everything else has a robust general implementation
-    in terms of those four; concrete classes should override the general
-    implementations wherever an exact/fast closed form exists (see
-    ``LineSegment`` and ``CircularArc``).
-    """
-
-    #: Number of coarse samples used to bracket global minimizers in the
-    #: general closest-point search. Enough to isolate the global minimum
-    #: for any curve whose geometry varies on scales longer than
-    #: (t_max - t_min) / _COARSE_SAMPLES.
-    _COARSE_SAMPLES = 64
+    """Abstract base class for parametric curves. See the module docstring
+    for the design contract; every method here is abstract on purpose."""
 
     @property
     @abstractmethod
@@ -38,186 +51,130 @@ class ParametricCurve(ABC):
         ...
 
     @abstractmethod
-    def point_at(self, t: float) -> tuple[float, ...]:
-        """
-        Get the point on the curve corresponding to the parameter t.
+    def point_at(self, t: float) -> tuple[float, float]:
+        """The point on the curve at parameter t."""
+        ...
 
-        Args:
-            t: The parameter value
+    @abstractmethod
+    def derivative_at(self, t: float) -> tuple[float, float]:
+        """The tangent vector of the curve at parameter t.
 
-        Returns:
-            A tuple of floats representing the coordinates of the point on the curve
+        For a UnitSpeedCurve this is the unit tangent.
         """
         ...
 
     @abstractmethod
-    def derivative_at(self, t: float) -> tuple[float, ...]:
-        """
-        Get the derivative (tangent vector) of the curve at parameter t.
+    def curvature_at(self, t: float) -> float:
+        """Signed curvature at parameter t (left-normal convention)."""
+        ...
 
-        Args:
-            t: The parameter value
+    @abstractmethod
+    def arc_length_between(self, t1: float, t2: float) -> float:
+        """Arc length of the curve between parameters t1 and t2."""
+        ...
 
-        Returns:
-            A tuple of floats representing the components of the tangent vector
+    @abstractmethod
+    def closest_parameter_in_range(
+        self, point: tuple[float, float], t1: float, t2: float
+    ) -> float:
+        """The parameter t* in [t1, t2] minimizing |point - point_at(t)|.
+
+        Implementations must locate the GLOBAL minimum over the range.
         """
         ...
 
-    # ------------------------------------------------------------------
-    # General implementations - override with closed forms where possible
-    # ------------------------------------------------------------------
-
-    def arc_length_between(self, t1: float, t2: float) -> float:
-        """
-        Compute the arc length of the curve between parameters t1 and t2.
-
-        General implementation: numerical quadrature of the tangent
-        magnitude.
-
-        Args:
-            t1: The start parameter value
-            t2: The end parameter value
-
-        Returns:
-            The arc length of the curve between t1 and t2.
-        """
-        speed = lambda t: sum(d * d for d in self.derivative_at(t)) ** 0.5
-        length, _ = quad(speed, t1, t2, limit=200)
-        return length
-
-    def closest_parameter_in_range(
-        self, point: tuple[float, ...], t1: float, t2: float
-    ) -> float:
-        """
-        Find the parameter of the point on the curve closest to *point*,
-        restricted to the parameter range [t1, t2].
-
-        General implementation: coarse global sampling to bracket the
-        minimum, followed by bounded local refinement.
-
-        Args:
-            point: A tuple of floats representing the coordinates of the point
-            t1: The start of the parameter range
-            t2: The end of the parameter range
-
-        Returns:
-            The parameter t* in [t1, t2] minimizing |point - point_at(t)|
-        """
-        def dist_sq(t: float) -> float:
-            p = self.point_at(t)
-            return sum((a - b) ** 2 for a, b in zip(point, p))
-
-        n = self._COARSE_SAMPLES
-        ts = [t1 + (t2 - t1) * i / n for i in range(n + 1)]
-        best_i = min(range(n + 1), key=lambda i: dist_sq(ts[i]))
-
-        # Refine within the bracketing neighbors of the coarse winner
-        lo = ts[max(best_i - 1, 0)]
-        hi = ts[min(best_i + 1, n)]
-        if lo == hi:
-            return lo
-        result = minimize_scalar(dist_sq, bounds=(lo, hi), method="bounded")
-        # The coarse winner guards against a failed local refinement
-        return result.x if result.fun <= dist_sq(ts[best_i]) else ts[best_i]
-
-    def closest_parameter(self, point: tuple[float, ...]) -> float:
-        """Find the parameter of the curve point closest to *point*.
-
-        Delegates to closest_parameter_in_range over the full domain.
-        """
-        return self.closest_parameter_in_range(point, self.t_min, self.t_max)
-
-    def distance_to_curve_for_range(
-        self, point: tuple[float, ...], t1: float, t2: float
-    ) -> float:
-        """
-        Provide the shortest distance from a given point to the portion of
-        the curve restricted to the parameter range [t1, t2].
-
-        General implementation: distance to the closest-parameter point.
-
-        Args:
-            point: A tuple of floats representing the coordinates of the point
-            t1: The start of the parameter range
-            t2: The end of the parameter range
-
-        Returns:
-            The shortest distance from the point to the curve over [t1, t2]
-        """
-        t_star = self.closest_parameter_in_range(point, t1, t2)
-        p = self.point_at(t_star)
-        return sum((a - b) ** 2 for a, b in zip(point, p)) ** 0.5
-
-    def distance_to_curve(self, point: tuple[float, ...]) -> float:
-        """
-        Provide the shortest distance from a given point to the curve.
-
-        Delegates to distance_to_curve_for_range over the full parameter domain.
-
-        Args:
-            point: A tuple of floats representing the coordinates of the point
-
-        Returns:
-            The shortest distance from the point to the curve
-        """
-        return self.distance_to_curve_for_range(point, self.t_min, self.t_max)
-
+    @abstractmethod
     def sample_params(
         self,
         max_chord_error: float,
         include: tuple[float, ...] = (),
     ) -> tuple[float, ...]:
-        """
-        Sample parameter values such that the polyline through the sampled
-        points deviates from the curve by at most *max_chord_error*.
-
-        General implementation: recursive bisection - a segment [ta, tb] is
-        split while the curve midpoint deviates from the chord midpoint by
-        more than the tolerance.
+        """Parameter values whose polyline deviates from the curve by at
+        most ``max_chord_error``.
 
         Args:
-            max_chord_error: Maximum allowed distance between the curve and
-                the chord of any sampled segment.
-            include: Parameter values that must appear in the sample
-                (e.g. discretization slice boundaries, so that no chord
-                spans a value where downstream data has a kink).
+            max_chord_error: Maximum allowed curve-to-chord deviation of any
+                sampled segment.
+            include: Parameter values that must appear exactly in the sample
+                (values outside the domain are ignored, so a loop-wide list
+                can be forwarded to every boundary piece).
 
         Returns:
             Sorted tuple of parameter values from t_min to t_max.
         """
-        params = [self.t_min, self.t_max]
-        for t in include:
-            if self.t_min < t < self.t_max:
-                insort(params, t)
+        ...
 
-        def chord_error(ta: float, tb: float) -> float:
-            """Curve-to-chord deviation, probed at the 1/4, 1/2, 3/4 points.
+    @abstractmethod
+    def canonical(self) -> tuple:
+        """A JSON-serializable canonical description of the curve: a type
+        tag plus the exact defining parameters. Used for geometry
+        fingerprints, so it must uniquely determine the curve."""
+        ...
 
-            Probing three interior points (not just the midpoint) prevents
-            symmetric curves - where the curve midpoint happens to lie on
-            the chord - from defeating the refinement test.
-            """
-            pa, pb = self.point_at(ta), self.point_at(tb)
-            err = 0.0
-            for frac in (0.25, 0.5, 0.75):
-                tp = ta + frac * (tb - ta)
-                pp = self.point_at(tp)
-                chord_pt = tuple(a + frac * (b - a) for a, b in zip(pa, pb))
-                dev = sum((p - c) ** 2 for p, c in zip(pp, chord_pt)) ** 0.5
-                err = max(err, dev)
-            return err
+    # ------------------------------------------------------------------
+    # Exact conveniences in terms of the abstract interface
+    # ------------------------------------------------------------------
 
-        # Refine until every adjacent pair satisfies the chord tolerance.
-        # min_step guards against runaway subdivision on degenerate input.
-        min_step = (self.t_max - self.t_min) * 1e-6
-        stack = list(zip(params[:-1], params[1:]))
-        out: list[float] = [params[0]]
-        while stack:
-            ta, tb = stack.pop(0)
-            if tb - ta > min_step and chord_error(ta, tb) > max_chord_error:
-                tm = 0.5 * (ta + tb)
-                stack.insert(0, (tm, tb))
-                stack.insert(0, (ta, tm))
-            else:
-                out.append(tb)
-        return tuple(out)
+    def closest_parameter(self, point: tuple[float, float]) -> float:
+        """The parameter of the curve point closest to *point* over the
+        full domain."""
+        return self.closest_parameter_in_range(point, self.t_min, self.t_max)
+
+    def distance_to_curve_for_range(
+        self, point: tuple[float, float], t1: float, t2: float
+    ) -> float:
+        """Shortest distance from *point* to the curve restricted to
+        [t1, t2] - exact given the exact projection."""
+        t_star = self.closest_parameter_in_range(point, t1, t2)
+        p = self.point_at(t_star)
+        return ((point[0] - p[0]) ** 2 + (point[1] - p[1]) ** 2) ** 0.5
+
+    def distance_to_curve(self, point: tuple[float, float]) -> float:
+        """Shortest distance from *point* to the curve."""
+        return self.distance_to_curve_for_range(point, self.t_min, self.t_max)
+
+
+class UnitSpeedCurve(ParametricCurve):
+    """A ParametricCurve parameterized BY ARC LENGTH (unit speed).
+
+    Contract (enforced by the shared contract test suite):
+      * |derivative_at(t)| == 1 for every t in [t_min, t_max];
+      * arc_length_between(t1, t2) == t2 - t1 identically;
+      * derivative_at is continuous (G1 - no kinks).
+
+    Winding specs require this type for their centerlines.
+    """
+
+    def arc_length_between(self, t1: float, t2: float) -> float:
+        """Arc length is the parameter difference - the defining identity."""
+        return t2 - t1
+
+    @property
+    def length(self) -> float:
+        """Total arc length of the curve."""
+        return self.t_max - self.t_min
+
+    @abstractmethod
+    def max_abs_curvature(self) -> float:
+        """An upper bound on |curvature| over the curve, used to validate
+        offset constructions (the offset distance must stay below the
+        minimum radius of curvature)."""
+        ...
+
+    @abstractmethod
+    def sample_params_for_offset(
+        self,
+        offset: float,
+        max_chord_error: float,
+        include: tuple[float, ...] = (),
+    ) -> tuple[float, ...]:
+        """Parameter values (in THIS curve's parameterization) such that the
+        polyline through the PARALLEL curve at signed distance ``offset``
+        deviates from it by at most ``max_chord_error``.
+
+        Each concrete curve knows its offsets exactly (a line's offset is a
+        parallel line, an arc's a concentric arc, a spline's a curve whose
+        curvature follows from the spline's), so offset sampling lives here
+        rather than as a numeric search on OffsetCurve.
+        """
+        ...

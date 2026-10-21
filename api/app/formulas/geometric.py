@@ -50,20 +50,33 @@ def helical_wire_length(curve, turn_fxn, min_samples: int = 2000) -> float:
     """Arc length of the helical wire whose centerline sweeps *curve* in
     the (r, z) plane while circling the axis per *turn_fxn*.
 
+    Delegates to helical_wire_length_between over the full curve domain.
+    """
+    return helical_wire_length_between(
+        curve, turn_fxn, curve.t_min, curve.t_max, min_samples=min_samples
+    )
+
+
+def helical_wire_length_between(
+    curve, turn_fxn, t1: float, t2: float, min_samples: int = 2000
+) -> float:
+    """Arc length of the helical wire between centerline parameters t1, t2.
+
     Integrates sqrt(|dc|^2 + (2*pi*r*dn)^2) along the curve by dense
     trapezoid summation - fully general in the ParametricCurve
     abstraction, so any winding shape (cylinder, cone, flat spiral,
-    saucer) is supported. Result is in the curve's geometry units.
+    saucer, arc, spline) is supported. Result is in geometry units.
 
     Parameters:
         curve: The winding centerline (a ParametricCurve).
         turn_fxn: Cumulative turns at parameter t.
+        t1, t2: Centerline parameter range to integrate over.
         min_samples: Lower bound on integration samples (raised
             automatically to 20 per turn).
     """
-    total_turns = float(turn_fxn(curve.t_max)) - float(turn_fxn(curve.t_min))
+    total_turns = float(turn_fxn(t2)) - float(turn_fxn(t1))
     n_samples = max(min_samples, int(20 * abs(total_turns)))
-    ts = np.linspace(curve.t_min, curve.t_max, n_samples)
+    ts = np.linspace(t1, t2, n_samples)
     points = np.array([curve.point_at(t) for t in ts])
     turns = np.array([turn_fxn(t) for t in ts])
     dr_dz = np.diff(points, axis=0)

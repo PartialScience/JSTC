@@ -18,8 +18,8 @@ from .component_schemas import (
     BoundaryConditionSchema,
 )
 from .coil_schemas import (
-    LinearSecondaryConductorSchema,
-    LinearPrimarySchema,
+    SecondaryConductorSchema,
+    PrimarySchema,
     ToploadSchema,
     GroundedConductorSchema,
     SimulatableTeslaCoilSchema,
@@ -59,8 +59,8 @@ __all__ = [
     "BoundaryConditionTypeSchema",
     "BoundaryConditionSchema",
     # Coil
-    "LinearSecondaryConductorSchema",
-    "LinearPrimarySchema",
+    "SecondaryConductorSchema",
+    "PrimarySchema",
     "ToploadSchema",
     "GroundedConductorSchema",
     "SimulatableTeslaCoilSchema",

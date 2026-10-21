@@ -12,14 +12,18 @@ import type { KonvaEventObject } from 'konva/lib/Node';
 
 import type {
   GroundSchema,
+  PathSchema,
   PrimarySchema,
   SecondarySchema,
   ToploadSchema,
 } from '../api/client';
 import type { ComponentRef, Point } from '../domain/coil';
+import { evaluatePath, pathControlPoints, withControlPoint } from '../domain/paths';
 import type { ThemeColors } from '../theme';
 import {
   mirrorX,
+  pathPolyline,
+  primaryOutline,
   primaryRingOutlines,
   secondaryOutline,
   shapeOutline,
@@ -28,26 +32,70 @@ import {
 import { moveVertex, shapeVertices } from './shapeOps';
 
 /** Perpendicular half-width of a winding from a dragged point: the distance
- *  from the point to the centerline, projected on the normal. */
-function halfWidthFrom(start: Point, end: Point, p: Point): number {
-  const dx = end[0] - start[0];
-  const dz = end[1] - start[1];
-  const len = Math.hypot(dx, dz) || 1;
-  const nx = -dz / len;
-  const nz = dx / len;
-  const mx = (start[0] + end[0]) / 2;
-  const mz = (start[1] + end[1]) / 2;
-  return Math.max(Math.abs((p[0] - mx) * nx + (p[1] - mz) * nz), 1e-4);
+ *  from the point to the (sampled) centerline. Display-grade accuracy is
+ *  plenty for a drag handle. */
+function halfWidthFromPath(path: PathSchema, q: Point): number {
+  let p;
+  try {
+    p = evaluatePath(path);
+  } catch {
+    return 1e-4;
+  }
+  const n = 128;
+  let best = Infinity;
+  for (let i = 0; i <= n; i++) {
+    const [x, z] = p.pointAt((p.length * i) / n);
+    best = Math.min(best, Math.hypot(q[0] - x, q[1] - z));
+  }
+  return Math.max(best, 1e-4);
 }
 
 /** World position of a winding's wire-width handle (midpoint + normal*half). */
-function wireHandlePoint(start: Point, end: Point, half: number): Point {
-  const dx = end[0] - start[0];
-  const dz = end[1] - start[1];
-  const len = Math.hypot(dx, dz) || 1;
-  const nx = -dz / len;
-  const nz = dx / len;
-  return [(start[0] + end[0]) / 2 + nx * half, (start[1] + end[1]) / 2 + nz * half];
+/** Where the conductor-width handle sits: off the path midpoint, on the
+ *  left-normal side, at the conductor's half width. */
+function wireHandlePoint(path: PathSchema, half: number): Point {
+  try {
+    const p = evaluatePath(path);
+    const mid = p.length / 2;
+    const [x, z] = p.pointAt(mid);
+    const [tx, tz] = p.tangentAt(mid);
+    return [x - tz * half, z + tx * half];
+  } catch {
+    return pathControlPoints(path)[0]!;
+  }
+}
+
+/** Handle metadata for every defining point of a path: line/arc expose
+ *  start/end (same gestures and testIds as before); a spline exposes one
+ *  handle per interpolation point. */
+function pathHandleDescriptors(path: PathSchema): Array<{
+  index: number;
+  world: Point;
+  suffix: string;
+  menuHandle: 'start' | 'end' | 'vertex';
+  vertexIndex?: number;
+}> {
+  const pts = pathControlPoints(path);
+  if (path.kind === 'spline') {
+    return pts.map((world, index) => ({
+      index,
+      world,
+      suffix: `pt-${index}`,
+      menuHandle: 'vertex' as const,
+      vertexIndex: index,
+    }));
+  }
+  if (path.kind === 'arc') {
+    return [
+      { index: 0, world: pts[0]!, suffix: 'start', menuHandle: 'start' as const },
+      { index: 1, world: pts[1]!, suffix: 'mid', menuHandle: 'vertex' as const, vertexIndex: 1 },
+      { index: 2, world: pts[2]!, suffix: 'end', menuHandle: 'end' as const },
+    ];
+  }
+  return [
+    { index: 0, world: pts[0]!, suffix: 'start', menuHandle: 'start' as const },
+    { index: 1, world: pts[1]!, suffix: 'end', menuHandle: 'end' as const },
+  ];
 }
 
 export interface ToScreen {
@@ -274,32 +322,28 @@ export function SecondaryShape(props: ComponentRenderProps<SecondarySchema>) {
       />
       {selected && (
         <>
+          {pathHandleDescriptors(data.path).map((h) => (
+            <Handle
+              key={h.suffix}
+              world={h.world}
+              toScreen={toScreen}
+              colors={colors}
+              testId={`handle-secondary-${h.suffix}`}
+              onDrag={(screen) =>
+                onPatch({ path: withControlPoint(data.path, h.index, fromScreen(screen[0], screen[1])) })
+              }
+              onContextMenu={(e) => onContextMenu(e, target, h.menuHandle, h.vertexIndex)}
+            />
+          ))}
           <Handle
-            world={data.start}
-            toScreen={toScreen}
-            colors={colors}
-            testId="handle-secondary-start"
-            onDrag={(screen) => onPatch({ start: fromScreen(screen[0], screen[1]) })}
-            onContextMenu={(e) => onContextMenu(e, target, 'start')}
-          />
-          <Handle
-            world={data.end}
-            toScreen={toScreen}
-            colors={colors}
-            testId="handle-secondary-end"
-            onDrag={(screen) => onPatch({ end: fromScreen(screen[0], screen[1]) })}
-            onContextMenu={(e) => onContextMenu(e, target, 'end')}
-          />
-          <Handle
-            world={wireHandlePoint(data.start, data.end, data.wire_dia / 2)}
+            world={wireHandlePoint(data.path, data.wire_dia / 2)}
             toScreen={toScreen}
             colors={colors}
             testId="handle-secondary-wire"
             color={colors.secondary.handle}
             onDrag={(screen) =>
               onPatch({
-                wire_dia:
-                  2 * halfWidthFrom(data.start, data.end, fromScreen(screen[0], screen[1])),
+                wire_dia: 2 * halfWidthFromPath(data.path, fromScreen(screen[0], screen[1])),
               })
             }
             onContextMenu={(e) => onContextMenu(e, target, 'wire')}
@@ -324,11 +368,11 @@ export function PrimaryShape(props: ComponentRenderProps<PrimarySchema>) {
       : data.cross_section.width;
   const palette = colors.materials[data.material];
   const rings = primaryRingOutlines(data);
-  const centerline: Point[] = [data.start, data.end];
+  const centerline: Point[] = pathPolyline(data.path, width / 8);
   const [hovered, setHovered] = useState(false);
   const showCenterline = hovered || selected;
 
-  const capsule = secondaryOutline({ ...data, wire_dia: width } as unknown as SecondarySchema);
+  const capsule = primaryOutline(data);
 
   const longPress = useKonvaLongPress((node) =>
     onContextMenu({ target: node } as unknown as KonvaEventObject<PointerEvent>, target),
@@ -374,14 +418,18 @@ export function PrimaryShape(props: ComponentRenderProps<PrimarySchema>) {
     <>
       {/* Per-turn ring cross-sections (both arms of the mirror). */}
       {[false, true].map((mirror) =>
-        rings.map((poly, i) => (
+        rings.map((ring, i) => (
           <Line
             key={`ring-${mirror ? 'l' : 'r'}-${i}`}
-            points={toFlatScreen(mirror ? mirrorX(poly) : poly, toScreen)}
+            points={toFlatScreen(mirror ? mirrorX(ring.outline) : ring.outline, toScreen)}
             closed
             stroke={palette.stroke}
             strokeWidth={selected ? 2 : 1.5}
             fill={palette.fill}
+            // A fractional final turn is not a full ring: the solver weights
+            // its flux linkage by the fraction, and the picture says so by
+            // fading it rather than drawing a solid turn that is not there.
+            opacity={ring.fraction < 1 ? 0.3 + 0.5 * ring.fraction : 1}
             listening={false}
           />
         )),
@@ -408,30 +456,27 @@ export function PrimaryShape(props: ComponentRenderProps<PrimarySchema>) {
 
       {selected && (
         <>
+          {pathHandleDescriptors(data.path).map((h) => (
+            <Handle
+              key={h.suffix}
+              world={h.world}
+              toScreen={toScreen}
+              colors={colors}
+              testId={`handle-primary-${h.suffix}`}
+              onDrag={(screen) =>
+                onPatch({ path: withControlPoint(data.path, h.index, fromScreen(screen[0], screen[1])) })
+              }
+              onContextMenu={(e) => onContextMenu(e, target, h.menuHandle, h.vertexIndex)}
+            />
+          ))}
           <Handle
-            world={data.start}
-            toScreen={toScreen}
-            colors={colors}
-            testId="handle-primary-start"
-            onDrag={(screen) => onPatch({ start: fromScreen(screen[0], screen[1]) })}
-            onContextMenu={(e) => onContextMenu(e, target, 'start')}
-          />
-          <Handle
-            world={data.end}
-            toScreen={toScreen}
-            colors={colors}
-            testId="handle-primary-end"
-            onDrag={(screen) => onPatch({ end: fromScreen(screen[0], screen[1]) })}
-            onContextMenu={(e) => onContextMenu(e, target, 'end')}
-          />
-          <Handle
-            world={wireHandlePoint(data.start, data.end, width / 2)}
+            world={wireHandlePoint(data.path, width / 2)}
             toScreen={toScreen}
             colors={colors}
             testId="handle-primary-wire"
             color={palette.handle}
             onDrag={(screen) => {
-              const w = 2 * halfWidthFrom(data.start, data.end, fromScreen(screen[0], screen[1]));
+              const w = 2 * halfWidthFromPath(data.path, fromScreen(screen[0], screen[1]));
               onPatch({
                 cross_section:
                   data.cross_section.kind === 'circular'

@@ -29,21 +29,8 @@ class CoaxialRingMutualCouplingSolver(MutualCouplingSolver):
     by the fractional final turn). Every primary-secondary ring pair
     contributes the Maxwell mutual-inductance formula; turn-level values
     are grouped into segments with the shared turn_sampling convention.
-
-    Supported kwargs:
-        turn_interpolation_density (int): Dense samples per turn for
-            inverting the secondary's turn_fxn (default 10, matching the
-            inductance solver).
+    Ring positions come from the turn profiles' exact inverses.
     """
-
-    _DEFAULT_TURN_INTERPOLATION_DENSITY = 10
-
-    @property
-    def turn_interpolation_density(self) -> int:
-        return self._kwargs.get(
-            "turn_interpolation_density",
-            self._DEFAULT_TURN_INTERPOLATION_DENSITY,
-        )
 
     def coupling_vector(
         self, coil: SimulatableTeslaCoil
@@ -54,9 +41,7 @@ class CoaxialRingMutualCouplingSolver(MutualCouplingSolver):
 
         secondary = coil.secondary
         slices = tuple(self.discretizer.get_slices(secondary, coil.discretization_order))
-        m_full = self._compute_full_turn_vector(
-            secondary, coil.primary, self.turn_interpolation_density
-        )
+        m_full = self._compute_full_turn_vector(secondary, coil.primary)
         indices = segment_start_indices(secondary, slices, len(m_full))
         m_seg = np.add.reduceat(m_full, indices)
         return tuple(float(v) for v in m_seg)
@@ -66,11 +51,10 @@ class CoaxialRingMutualCouplingSolver(MutualCouplingSolver):
     def _compute_full_turn_vector(
         secondary: SecondaryConductorSpec,
         primary: PrimarySpec,
-        turn_interpolation_density: int,
     ) -> np.ndarray:
         """Mutual inductance between the whole primary and each secondary
         turn ring: m_full[i] = sum_p w_p * M(ring_p, ring_i)."""
-        sec_points = secondary_turn_points(secondary, turn_interpolation_density)
+        sec_points = secondary_turn_points(secondary)
         prim_centers = primary.ring_centers()
         prim_weights = primary.ring_turn_fractions()
 

@@ -5,12 +5,14 @@ import numpy as np
 
 from app.schemas.analysis_schemas import (
     AnalysisResponse,
+    ComputedValue,
     CoupledOutputs,
     CouplingOutputs,
     EigenModesOutputs,
     PrimaryOutputs,
     SecondaryOutputs,
 )
+from app.simulation.types import NotComputable
 from app.schemas.matrix_schemas import MatrixBundleSchema
 
 
@@ -21,6 +23,21 @@ def _optional(fn):
         return fn()
     except ValueError:
         return None
+
+
+def _computed(fn) -> ComputedValue:
+    """Evaluate a facade property into a ComputedValue.
+
+    NotComputable (a gated formula whose assumptions fail) and ValueError
+    (a quantity undefined for this coil, e.g. tank frequency without a tank
+    capacitance) both become {value: null, reason} instead of failing the
+    whole analysis."""
+    try:
+        return ComputedValue(value=float(fn()))
+    except NotComputable as e:
+        return ComputedValue(value=None, reason=e.reason)
+    except ValueError as e:
+        return ComputedValue(value=None, reason=str(e))
 
 
 def _secondary_outputs(sec) -> SecondaryOutputs:
@@ -45,8 +62,8 @@ def _secondary_outputs(sec) -> SecondaryOutputs:
         reactance_at_resonance=sec.reactance_at_resonance,
         skin_depth=sec.skin_depth,
         dc_resistance=sec.dc_resistance,
-        ac_resistance=sec.ac_resistance,
-        quality_factor=sec.quality_factor,
+        ac_resistance=_computed(lambda: sec.ac_resistance),
+        quality_factor=_computed(lambda: sec.quality_factor),
         wire_weight=sec.wire_weight,
     )
 
@@ -91,8 +108,8 @@ def _primary_outputs(primary) -> PrimaryOutputs:
         dc_inductance=primary.dc_inductance,
         lead_inductance=primary.lead_inductance,
         total_inductance=primary.total_inductance,
-        resonant_frequency=_optional(lambda: primary.resonant_frequency),
-        percent_detuned=_optional(lambda: primary.percent_detuned),
+        resonant_frequency=_computed(lambda: primary.resonant_frequency),
+        percent_detuned=_computed(lambda: primary.percent_detuned),
         wire_length=primary.wire_length,
         coil_pitch=primary.coil_pitch,
         turn_spacing=primary.turn_spacing,
@@ -105,7 +122,7 @@ def _coupling_outputs(coupling) -> CouplingOutputs:
         mutual_inductance=coupling.mutual_inductance,
         coupling_coefficient=coupling.coupling_coefficient,
         half_cycles_for_energy_transfer=coupling.half_cycles_for_energy_transfer,
-        energy_transfer_time=_optional(lambda: coupling.energy_transfer_time),
+        energy_transfer_time=_computed(lambda: coupling.energy_transfer_time),
     )
 
 

@@ -8,6 +8,8 @@ import { useState } from 'react';
 
 import type { GroundSchema, ToploadSchema } from '../api/client';
 import type { ComponentRef, Point } from '../domain/coil';
+import type { PathSchema } from '../api/client';
+import { pathControlPoints, withControlPoint } from '../domain/paths';
 import { useEditorStore } from '../state/store';
 import { convertShape, deleteVertex, insertVertex, type ShapeKind } from '../editor/shapeOps';
 
@@ -29,6 +31,20 @@ export function ContextMenu() {
   const [pt, setPt] = useState<Point | null>(null);
 
   if (!menu) return null;
+
+  /** Move the path point a winding handle refers to. */
+  const patchPathPoint = (
+    path: PathSchema,
+    handle: string | undefined,
+    vertexIndex: number | null | undefined,
+    p: Point,
+  ): PathSchema => {
+    if (vertexIndex != null) {
+      return withControlPoint(path, vertexIndex, p);
+    }
+    const last = pathControlPoints(path).length - 1;
+    return withControlPoint(path, handle === 'start' ? 0 : last, p);
+  };
 
   // Lazily seed the point editor with the handle's current world position.
   if (menu.handle && menu.world && pt === null) setPt(menu.world);
@@ -57,9 +73,9 @@ export function ContextMenu() {
         patchConductor(ref, { shape: { ...shape, vertices } });
       }
     } else if (ref.kind === 'secondary') {
-      updateSecondary(handle === 'start' ? { start: pt } : { end: pt });
-    } else if (ref.kind === 'primary') {
-      updatePrimary(handle === 'start' ? { start: pt } : { end: pt });
+      updateSecondary({ path: patchPathPoint(coil.secondary.path, handle, vertexIndex, pt) });
+    } else if (ref.kind === 'primary' && coil.primary) {
+      updatePrimary({ path: patchPathPoint(coil.primary.path, handle, vertexIndex, pt) });
     } else if (handle === 'center') {
       const shape = conductor(ref)?.shape;
       if (shape?.kind === 'circle') patchConductor(ref, { shape: { ...shape, center: pt } });

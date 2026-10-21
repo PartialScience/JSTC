@@ -12,7 +12,7 @@ import math
 import pytest
 from unittest.mock import MagicMock
 from app.geometry.regions.offset_regions import OffsetRegion
-from app.geometry.curves.base import ParametricCurve
+from app.geometry.curves.base import UnitSpeedCurve
 
 
 # ---------------------------------------------------------------------------
@@ -27,8 +27,10 @@ def _make_mock_curve(distance_fn):
     Args:
         distance_fn: callable(point) -> float
     """
-    curve = MagicMock(spec=ParametricCurve)
+    curve = MagicMock(spec=UnitSpeedCurve)
     curve.distance_to_curve = MagicMock(side_effect=distance_fn)
+    # A straight mock: construction validates offset < 1/max|curvature|
+    curve.max_abs_curvature = MagicMock(return_value=0.0)
     return curve
 
 

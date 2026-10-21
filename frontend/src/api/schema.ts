@@ -193,6 +193,47 @@ export interface components {
             bundle?: components["schemas"]["MatrixBundleSchema"] | null;
         };
         /**
+         * ArcPathSchema
+         * @description A circular-arc centerline: the unique arc from ``start`` to ``end``
+         *     passing through ``mid``.
+         *
+         *     Three points on the arc (in traversal order) determine everything with
+         *     no sign conventions: the circle, the bend direction, and whether the
+         *     minor or major arc is taken. The points must not be collinear (a
+         *     straight centerline is a line path).
+         */
+        ArcPathSchema: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "arc";
+            /**
+             * Start
+             * @description Path start (r, z)
+             */
+            start: [
+                number,
+                number
+            ];
+            /**
+             * Mid
+             * @description A point the arc passes through, between start and end
+             */
+            mid: [
+                number,
+                number
+            ];
+            /**
+             * End
+             * @description Path end (r, z)
+             */
+            end: [
+                number,
+                number
+            ];
+        };
+        /**
          * BoundaryConditionSchema
          * @description Boundary condition on a simulation-domain wall.
          */
@@ -252,6 +293,24 @@ export interface components {
             diameter: number;
         };
         /**
+         * ComputedValue
+         * @description A derived output that is only valid under documented assumptions.
+         *
+         *     ``value`` is null when the assumptions do not hold for this coil, with
+         *     ``reason`` explaining why (chained through dependent values, e.g. "Q
+         *     could not be computed because it depends on Rac: ..."). The UI renders
+         *     null values as "Not computed" with the reason as a tooltip.
+         */
+        ComputedValue: {
+            /** Value */
+            value?: number | null;
+            /**
+             * Reason
+             * @description Why the value was not computed (null when computed)
+             */
+            reason?: string | null;
+        };
+        /**
          * CoupledOutputs
          * @description Full coupled primary-secondary solve. Present only when the primary
          *     has a tank capacitance.
@@ -286,11 +345,7 @@ export interface components {
             coupling_coefficient: number;
             /** Half Cycles For Energy Transfer */
             half_cycles_for_energy_transfer: number;
-            /**
-             * Energy Transfer Time
-             * @description Null when the primary tank frequency is undefined
-             */
-            energy_transfer_time?: number | null;
+            energy_transfer_time: components["schemas"]["ComputedValue"];
         };
         /**
          * EigenModesOutputs
@@ -371,12 +426,12 @@ export interface components {
              */
             reference_mode: "floating" | "grounded";
             /**
-             * Hot End
-             * @description Which primary end carries V_p (E-field only)
-             * @default outer
+             * Grounded End
+             * @description Which primary winding end is grounded/cold (E-field only); the opposite end carries V_p
+             * @default start
              * @enum {string}
              */
-            hot_end: "inner" | "outer";
+            grounded_end: "start" | "end";
             /**
              * Grid Nr
              * @description Grid samples across r
@@ -440,6 +495,31 @@ export interface components {
              */
             mask: boolean[];
             bundle: components["schemas"]["MatrixBundleSchema"];
+        };
+        /**
+         * GradedTurnProfileSchema
+         * @description Cumulative turn counts at control points along the winding.
+         *
+         *     Each point is (u, n): u the normalized position along the path (0 =
+         *     start, 1 = end) and n the cumulative turn count there. The first point
+         *     must be (0, 0), the last must have u = 1 (its n is the total turn
+         *     count), and both coordinates must be strictly increasing. Turns
+         *     interpolate linearly between points (constant pitch within each band).
+         */
+        GradedTurnProfileSchema: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "graded";
+            /**
+             * Points
+             * @description (position u, cumulative turns) control points
+             */
+            points: [
+                number,
+                number
+            ][];
         };
         /** GroundedConductorSchema */
         GroundedConductorSchema: {
@@ -510,25 +590,18 @@ export interface components {
             bundle: components["schemas"]["MatrixBundleSchema"];
         };
         /**
-         * LinearPrimarySchema
-         * @description A primary wound along a straight (r, z) centerline.
+         * LinePathSchema
+         * @description A straight centerline from start to end.
          */
-        LinearPrimarySchema: {
-            /** @default copper */
-            material: components["schemas"]["MaterialSchema"];
+        LinePathSchema: {
             /**
-             * Turn Fxn
-             * @description Cumulative turn profile
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
-            turn_fxn: components["schemas"]["UniformTurnProfileSchema"];
-            /**
-             * Cross Section
-             * @description Conductor cross-section
-             */
-            cross_section: components["schemas"]["CircularCrossSectionSchema"] | components["schemas"]["RectangularCrossSectionSchema"];
+            kind: "line";
             /**
              * Start
-             * @description Winding start (r, z)
+             * @description Path start (r, z)
              */
             start: [
                 number,
@@ -536,64 +609,12 @@ export interface components {
             ];
             /**
              * End
-             * @description Winding end (r, z)
+             * @description Path end (r, z)
              */
             end: [
                 number,
                 number
             ];
-            /**
-             * Tank Capacitance
-             * @description Tank capacitance (Farads)
-             * @default 0
-             */
-            tank_capacitance: number;
-            /**
-             * Lead Length
-             * @description Connection lead length
-             * @default 0
-             */
-            lead_length: number;
-            /**
-             * Lead Dia
-             * @description Connection lead diameter
-             * @default 0
-             */
-            lead_dia: number;
-        };
-        /**
-         * LinearSecondaryConductorSchema
-         * @description A secondary wound along a straight (r, z) centerline.
-         */
-        LinearSecondaryConductorSchema: {
-            /** @default copper */
-            material: components["schemas"]["MaterialSchema"];
-            /**
-             * Turn Fxn
-             * @description Cumulative turn profile
-             */
-            turn_fxn: components["schemas"]["UniformTurnProfileSchema"];
-            /**
-             * Start
-             * @description Winding start (r, z)
-             */
-            start: [
-                number,
-                number
-            ];
-            /**
-             * End
-             * @description Winding end (r, z)
-             */
-            end: [
-                number,
-                number
-            ];
-            /**
-             * Wire Dia
-             * @description Wire diameter
-             */
-            wire_dia: number;
         };
         /**
          * MaterialSchema
@@ -676,13 +697,8 @@ export interface components {
             lead_inductance: number;
             /** Total Inductance */
             total_inductance: number;
-            /**
-             * Resonant Frequency
-             * @description Null when no tank capacitance is specified
-             */
-            resonant_frequency?: number | null;
-            /** Percent Detuned */
-            percent_detuned?: number | null;
+            resonant_frequency: components["schemas"]["ComputedValue"];
+            percent_detuned: components["schemas"]["ComputedValue"];
             /** Wire Length */
             wire_length: number;
             /** Coil Pitch */
@@ -691,6 +707,47 @@ export interface components {
             turn_spacing: number;
             /** Dc Resistance */
             dc_resistance: number;
+        };
+        /**
+         * PrimarySchema
+         * @description A primary wound along a parametric (r, z) centerline path.
+         */
+        PrimarySchema: {
+            /** @default copper */
+            material: components["schemas"]["MaterialSchema"];
+            /**
+             * Turn Fxn
+             * @description Turn distribution
+             */
+            turn_fxn: components["schemas"]["UniformTurnProfileSchema"] | components["schemas"]["GradedTurnProfileSchema"];
+            /**
+             * Cross Section
+             * @description Conductor cross-section
+             */
+            cross_section: components["schemas"]["CircularCrossSectionSchema"] | components["schemas"]["RectangularCrossSectionSchema"];
+            /**
+             * Path
+             * @description Winding centerline path
+             */
+            path: components["schemas"]["LinePathSchema"] | components["schemas"]["ArcPathSchema"] | components["schemas"]["SplinePathSchema"];
+            /**
+             * Tank Capacitance
+             * @description Tank capacitance (Farads)
+             * @default 0
+             */
+            tank_capacitance: number;
+            /**
+             * Lead Length
+             * @description Connection lead length
+             * @default 0
+             */
+            lead_length: number;
+            /**
+             * Lead Dia
+             * @description Connection lead diameter
+             * @default 0
+             */
+            lead_dia: number;
         };
         /**
          * RectangleSchema
@@ -731,6 +788,29 @@ export interface components {
              * @description Axial extent
              */
             height: number;
+        };
+        /**
+         * SecondaryConductorSchema
+         * @description A secondary wound along a parametric (r, z) centerline path.
+         */
+        SecondaryConductorSchema: {
+            /** @default copper */
+            material: components["schemas"]["MaterialSchema"];
+            /**
+             * Turn Fxn
+             * @description Turn distribution
+             */
+            turn_fxn: components["schemas"]["UniformTurnProfileSchema"] | components["schemas"]["GradedTurnProfileSchema"];
+            /**
+             * Path
+             * @description Winding centerline path
+             */
+            path: components["schemas"]["LinePathSchema"] | components["schemas"]["ArcPathSchema"] | components["schemas"]["SplinePathSchema"];
+            /**
+             * Wire Dia
+             * @description Wire diameter
+             */
+            wire_dia: number;
         };
         /** SecondaryOutputs */
         SecondaryOutputs: {
@@ -774,10 +854,8 @@ export interface components {
             skin_depth: number;
             /** Dc Resistance */
             dc_resistance: number;
-            /** Ac Resistance */
-            ac_resistance: number;
-            /** Quality Factor */
-            quality_factor: number;
+            ac_resistance: components["schemas"]["ComputedValue"];
+            quality_factor: components["schemas"]["ComputedValue"];
             /** Wire Weight */
             wire_weight: number;
         };
@@ -786,8 +864,8 @@ export interface components {
          * @description A complete coil plus its simulation domain and boundary conditions.
          */
         SimulatableTeslaCoilSchema: {
-            secondary: components["schemas"]["LinearSecondaryConductorSchema"];
-            primary?: components["schemas"]["LinearPrimarySchema"] | null;
+            secondary: components["schemas"]["SecondaryConductorSchema"];
+            primary?: components["schemas"]["PrimarySchema"] | null;
             /** Toploads */
             toploads?: components["schemas"]["ToploadSchema"][];
             /** Grounds */
@@ -841,6 +919,25 @@ export interface components {
             netlist: string;
             bundle: components["schemas"]["MatrixBundleSchema"];
         };
+        /**
+         * SplinePathSchema
+         * @description An interpolating centripetal Catmull-Rom spline through the points.
+         */
+        SplinePathSchema: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "spline";
+            /**
+             * Points
+             * @description Interpolation points (r, z), in order
+             */
+            points: [
+                number,
+                number
+            ][];
+        };
         /** ToploadSchema */
         ToploadSchema: {
             /** @default aluminum */
@@ -853,7 +950,10 @@ export interface components {
         };
         /**
          * UniformTurnProfileSchema
-         * @description Evenly wound: turns ramp linearly in the curve parameter.
+         * @description Evenly wound: constant turn density along the winding path.
+         *
+         *     The profile's parameter domain is derived from the winding curve by the
+         *     model itself, so the schema carries no domain fields.
          */
         UniformTurnProfileSchema: {
             /**
@@ -866,18 +966,6 @@ export interface components {
              * @description Total number of turns
              */
             total_turns: number;
-            /**
-             * T Min
-             * @description Curve parameter at the start
-             * @default 0
-             */
-            t_min: number;
-            /**
-             * T Max
-             * @description Curve parameter at the end
-             * @default 1
-             */
-            t_max: number;
         };
         /** ValidationError */
         ValidationError: {
