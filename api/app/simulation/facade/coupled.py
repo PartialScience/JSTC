@@ -89,7 +89,7 @@ class CoupledView:
                 primary-LC input impedance). False gives the primary
                 winding + reflected secondary only.
         """
-        r_sec = self._sim.secondary.ac_resistance if include_losses else 0.0
+        r_sec = self._sim.secondary.drive_resistance if include_losses else 0.0
         r_prim = self._sim.primary.dc_resistance if include_losses else 0.0
         z = primary_input_impedance(
             self._system(),

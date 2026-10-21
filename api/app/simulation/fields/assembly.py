@@ -5,9 +5,10 @@ complex electrostatic potential of an energized coil.
     phi(r,z) = sum_k V_k u_k  +  V_p u_diff  +  offset u_uniform
 
 * V_k are the operating nodal voltages (V_0 = 0 at the grounded base).
-* u_diff is the primary's differential (0->V_p) field: the profile field for
-  a hot outer end, or (uniform - profile) for a hot inner end (the reversed
-  profile is exactly 1 - p, so its field is u_uniform - u_profile).
+* u_diff is the primary's differential (0->V_p) field: the profile field
+  when the hot end is the winding END (the profile ascends from the curve
+  start), or (uniform - profile) when the hot end is the winding START (the
+  reversed profile is exactly 1 - p, so its field is u_uniform - u_profile).
 * offset is the primary common-mode: 0 for a grounded cold end, or the
   charge-neutral value for a floating primary,
       offset = -(sum_k V_k Q_k + V_p Q_diff) / Q_uniform,
@@ -22,7 +23,7 @@ import numpy as np
 from app.simulation.fields.electrostatic_basis import ElectrostaticFieldBasis
 
 ReferenceMode = Literal["floating", "grounded"]
-HotEnd = Literal["inner", "outer"]
+HotEnd = Literal["start", "end"]
 
 
 def assemble_electrostatic_field(
@@ -30,7 +31,7 @@ def assemble_electrostatic_field(
     node_voltages: np.ndarray,
     primary_voltage: complex = 0.0,
     reference_mode: ReferenceMode = "floating",
-    hot_end: HotEnd = "outer",
+    hot_end: HotEnd = "end",
 ) -> np.ndarray:
     """Assemble the complex operating potential on the grid.
 
@@ -63,7 +64,7 @@ def assemble_electrostatic_field(
         Q_prof = Q[n_tents]
         Q_unif = Q[n_tents + 1]
 
-        if hot_end == "inner":
+        if hot_end == "start":
             u_diff = u_unif - u_prof
             Q_diff = Q_unif - Q_prof
         else:

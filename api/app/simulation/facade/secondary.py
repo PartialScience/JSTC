@@ -356,11 +356,38 @@ class SecondaryView:
     def ac_resistance(self) -> float:
         """Effective AC resistance of the secondary at the fundamental, in
         Ohms: Rdc x skin-effect factor (exact Kelvin solution) x Medhurst
-        proximity factor."""
+        proximity factor.
+
+        Medhurst's proximity table is an empirical fit for UNIFORM
+        single-layer CYLINDRICAL solenoids, so this property is only
+        computed when the winding actually is one: a straight vertical
+        centerline with a uniform turn distribution. Anything else raises
+        NotComputable (reported as a null-with-reason output) rather than
+        returning a number the model does not cover. See
+        docs/backlog/rac-proximity-model.md for the field-based replacement.
+
+        Raises:
+            NotComputable: for curved paths, slanted straight windings, or
+                graded turn distributions.
+        """
         from app.formulas.resistance import medhurst_proximity_factor, skin_effect_factor
+        from app.geometry import LineSegment
+        from app.models.turn_profiles import UniformTurns
+        from app.simulation.types import NotComputable
 
         coil = self._sim.coil
-        wire_dia_m = 2 * coil.secondary.geometry.offset * coil.unit_scale
+        sec = coil.secondary
+        curve = sec.curve
+        is_cylindrical = (
+            isinstance(curve, LineSegment) and curve.start[0] == curve.end[0]
+        )
+        if not is_cylindrical or not isinstance(sec.turns, UniformTurns):
+            raise NotComputable(
+                "Rac is only computed for uniform cylindrical solenoids: "
+                "Medhurst's proximity model requires a straight vertical "
+                "winding centerline with a uniform turn distribution."
+            )
+        wire_dia_m = 2 * sec.geometry.offset * coil.unit_scale
         skin = skin_effect_factor(wire_dia_m, self.skin_depth)
         proximity = medhurst_proximity_factor(
             spacing_ratio=self.coil_pitch / wire_dia_m,
@@ -369,7 +396,38 @@ class SecondaryView:
         return self.dc_resistance * skin * proximity
 
     @property
+    def drive_resistance(self) -> float:
+        """Best available series resistance for drive/loss solves, in Ohms.
+
+        Rac when the Medhurst model applies; otherwise Rdc x skin factor
+        with the proximity multiplier omitted - a documented lower bound
+        that keeps resonance peaks finite for parametric windings without
+        pretending the solenoid proximity table covers them.
+        """
+        from app.formulas.resistance import skin_effect_factor
+        from app.simulation.types import NotComputable
+
+        try:
+            return self.ac_resistance
+        except NotComputable:
+            coil = self._sim.coil
+            wire_dia_m = 2 * coil.secondary.geometry.offset * coil.unit_scale
+            return self.dc_resistance * skin_effect_factor(wire_dia_m, self.skin_depth)
+
+    @property
     def quality_factor(self) -> float:
         """Unloaded Q of the secondary at the fundamental:
-        omega * Les / Rac."""
-        return self.reactance_at_resonance / self.ac_resistance
+        omega * Les / Rac.
+
+        Raises:
+            NotComputable: when Rac is not computed (reason chained).
+        """
+        from app.simulation.types import NotComputable
+
+        try:
+            rac = self.ac_resistance
+        except NotComputable as e:
+            raise NotComputable(
+                f"Q could not be computed because it depends on Rac: {e.reason}"
+            ) from e
+        return self.reactance_at_resonance / rac
