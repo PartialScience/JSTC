@@ -28,7 +28,6 @@ from app.simulation.fields._cache import GeometryLruCache
 from app.simulation.fields.grid import FieldGrid
 
 MU0 = 4e-7 * np.pi
-_SAMPLES_PER_TURN = 4
 _CACHE = GeometryLruCache(maxsize=6)
 
 
@@ -84,7 +83,7 @@ def _compute(coil, grid: FieldGrid, discretizer) -> MagneticFieldBasis:
     rr, zz = np.meshgrid(grid.r_coords, grid.z_coords)  # (nz, nr)
 
     # Secondary turn rings, grouped into the N virtual-conductor segments.
-    turn_pts = secondary_turn_points(secondary, _SAMPLES_PER_TURN)  # (M+1, 2)
+    turn_pts = secondary_turn_points(secondary)  # (M+1, 2)
     bounds = segment_start_indices(secondary, slices, len(turn_pts))
     bounds = list(bounds) + [len(turn_pts)]
     n_seg = len(bounds) - 1

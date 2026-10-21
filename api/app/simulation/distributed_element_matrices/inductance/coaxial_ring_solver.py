@@ -52,24 +52,9 @@ class CoaxialRingInductanceLMatrixSolver(InductanceMatrixSolver):
 
     The full turn-by-turn mutual-inductance matrix is computed once (and
     cached), then downsampled to the requested discretization order using
-    segment boundaries provided by the discretizer.
-
-    Supported kwargs:
-        turn_interpolation_density (int): Number of dense samples per turn
-            used to invert ``turn_fxn`` via linear interpolation.
-            Defaults to ``_DEFAULT_TURN_INTERPOLATION_DENSITY``, which
-            gives sub-0.1% accuracy for smooth (monotonic) turn functions.
+    segment boundaries provided by the discretizer. Turn-boundary ring
+    positions come from the turn profile's exact inverse.
     """
-
-    _DEFAULT_TURN_INTERPOLATION_DENSITY = 10
-
-    @property
-    def turn_interpolation_density(self) -> int:
-        """Dense samples per turn for inverting ``turn_fxn``."""
-        return self._kwargs.get(
-            "turn_interpolation_density",
-            self._DEFAULT_TURN_INTERPOLATION_DENSITY,
-        )
 
     def geometric_inductance_matrix(
         self,
@@ -93,9 +78,7 @@ class CoaxialRingInductanceLMatrixSolver(InductanceMatrixSolver):
 
         slices = tuple(self.discretizer.get_slices(secondary, discretization_order))
 
-        L_full = self._compute_full_turn_matrix(
-            secondary, self.turn_interpolation_density
-        )
+        L_full = self._compute_full_turn_matrix(secondary)
         n = L_full.shape[0]
 
         # Group turn rows/columns into virtual-conductor segments. The
@@ -115,7 +98,6 @@ class CoaxialRingInductanceLMatrixSolver(InductanceMatrixSolver):
     @functools.lru_cache
     def _compute_full_turn_matrix(
         secondary: SecondaryConductorSpec,
-        turn_interpolation_density: int,
     ) -> np.ndarray:
         """Cached full turn-by-turn inductance matrix.
 
@@ -124,15 +106,13 @@ class CoaxialRingInductanceLMatrixSolver(InductanceMatrixSolver):
 
         Parameters:
             secondary: The specification of the secondary conductor.
-            turn_interpolation_density: Dense samples per turn for
-                inverting ``turn_fxn`` via linear interpolation.
 
         Returns:
             An (M+1)x(M+1) array where M = total_turns, representing the
             geometric inductance matrix.  Multiply by μ₀ for units of
             inductance (Henries).
         """
-        points = secondary_turn_points(secondary, turn_interpolation_density)
+        points = secondary_turn_points(secondary)
         r = np.ascontiguousarray(points[:, 0])
         z = np.ascontiguousarray(points[:, 1])
 

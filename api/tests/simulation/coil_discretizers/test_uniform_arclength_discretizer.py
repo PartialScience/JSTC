@@ -1,141 +1,131 @@
 """
 Tests for UniformArcLengthDiscretizer.
 
-Uses a mock SecondaryConductorSpec to avoid coupling to concrete coil model
-implementations. The mock's curve uses a simple arc_length_between that is
-proportional to parameter difference, making expected values easy to compute.
+The discretizer's contract: interior slice boundaries sit EXACTLY on
+integer-turn boundaries (located by the turn profile's exact inverse),
+chosen nearest the uniform-arc-length targets, strictly increasing, spanning
+[t_min, t_max]. Cutting on whole turns is what keeps the L/m segment
+grouping and the C-matrix tent nodes coincident, and makes a grouping
+collapse (slices outnumbering turns) impossible by construction.
 """
 import pytest
-from unittest.mock import MagicMock
-from app.models.coil_models import SecondaryConductorSpec
-from app.geometry.curves.base import ParametricCurve
-from app.geometry.regions.offset_regions import OffsetRegion
-from app.simulation.coil_discretizers.uniform_arclength_discretizer import UniformArcLengthDiscretizer
+
+from app.models.coil_models import (
+    CurveSecondaryConductorSpec,
+    LinearSecondaryConductorSpec,
+)
+from app.models.materials import Material
+from app.models.turn_profiles import GradedTurns, UniformTurns
+from app.geometry import CatmullRomSpline
+from app.simulation.coil_discretizers.uniform_arclength_discretizer import (
+    UniformArcLengthDiscretizer,
+)
 
 
-# ---------------------------------------------------------------------------
-# Helper: mock secondary backed by a mock curve
-# ---------------------------------------------------------------------------
-
-def _make_mock_secondary(t_min: float, t_max: float, total_length: float):
-    """
-    Create a mock SecondaryConductorSpec whose curve has a linear arc length
-    (i.e. arc_length_between(t1, t2) = total_length / (t_max - t_min) * (t2 - t1)).
-
-    This simulates a curve with uniform speed parameterization.
-    """
-    length_per_t = total_length / (t_max - t_min)
-
-    curve = MagicMock(spec=ParametricCurve)
-    curve.t_min = t_min
-    curve.t_max = t_max
-    curve.arc_length_between = MagicMock(
-        side_effect=lambda t1, t2: length_per_t * (t2 - t1)
+def _uniform_secondary(turns=100.0, length=10.0):
+    return LinearSecondaryConductorSpec(
+        material=Material.COPPER,
+        turns=UniformTurns(turns),
+        start=(1.0, 0.0),
+        end=(1.0, length),
+        wire_dia=0.02,
     )
 
-    geometry = MagicMock(spec=OffsetRegion)
-    geometry.offset = 0.01
 
-    secondary = MagicMock(spec=SecondaryConductorSpec)
-    secondary.curve = curve
-    secondary.geometry = geometry
-    return secondary
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture
-def unit_secondary():
-    """Curve with t in [0, 1] and total arc length = 10."""
-    return _make_mock_secondary(t_min=0.0, t_max=1.0, total_length=10.0)
+def _graded_secondary():
+    """Densely wound at the bottom (80 turns in the first fifth), sparse
+    above (20 turns over the remaining four fifths)."""
+    return LinearSecondaryConductorSpec(
+        material=Material.COPPER,
+        turns=GradedTurns(points=((0.0, 0.0), (0.2, 80.0), (1.0, 100.0))),
+        start=(1.0, 0.0),
+        end=(1.0, 10.0),
+        wire_dia=0.02,
+    )
 
 
-@pytest.fixture
-def shifted_secondary():
-    """Curve with t in [2, 7] and total arc length = 25."""
-    return _make_mock_secondary(t_min=2.0, t_max=7.0, total_length=25.0)
+def _spline_secondary():
+    path = CatmullRomSpline(points=((2.0, 0.0), (2.6, 5.0), (2.0, 10.0)))
+    return CurveSecondaryConductorSpec(
+        material=Material.COPPER,
+        turns=UniformTurns(60.0),
+        wire_dia=0.02,
+        path=path,
+    )
 
-
-# ---------------------------------------------------------------------------
-# Tests for get_slices
-# ---------------------------------------------------------------------------
 
 class TestGetSlices:
-    """Tests for UniformArcLengthDiscretizer.get_slices().
+    @pytest.mark.parametrize("order", [1, 2, 5, 30])
+    def test_count_endpoints_and_monotonicity(self, order):
+        sec = _uniform_secondary()
+        slices = UniformArcLengthDiscretizer.get_slices(sec, order)
+        assert len(slices) == order + 1
+        assert slices[0] == sec.curve.t_min
+        assert slices[-1] == sec.curve.t_max
+        assert all(b > a for a, b in zip(slices[:-1], slices[1:]))
 
-    get_slices returns a flat tuple of N+1 boundary parameter values
-    for N slices (discretization_order). Consecutive pairs define each slice.
-    """
+    def test_interior_boundaries_are_integer_turns(self):
+        for sec in (_uniform_secondary(), _graded_secondary(), _spline_secondary()):
+            slices = UniformArcLengthDiscretizer.get_slices(sec, 7)
+            for t in slices[1:-1]:
+                n = sec.turn_fxn(t)
+                assert n == pytest.approx(round(n), abs=1e-9), (
+                    f"interior slice at t={t} sits at fractional turn {n}"
+                )
 
-    def test_correct_number_of_boundaries(self, unit_secondary):
-        """get_slices should return exactly discretization_order + 1 boundary values."""
-        for n in [2, 5, 10]:
-            slices = UniformArcLengthDiscretizer.get_slices(unit_secondary, n)
-            assert len(slices) == n + 1
+    def test_uniform_winding_gives_uniform_arc_length(self):
+        """When the order divides the turn count, the turn-boundary snap
+        lands exactly on the uniform-arc-length targets."""
+        sec = _uniform_secondary(turns=100.0, length=10.0)
+        slices = UniformArcLengthDiscretizer.get_slices(sec, 4)
+        for a, b in zip(slices[:-1], slices[1:]):
+            assert sec.curve.arc_length_between(a, b) == pytest.approx(2.5, abs=1e-9)
 
-    def test_boundaries_are_monotonically_increasing(self, unit_secondary):
-        """Each boundary value should be strictly greater than its predecessor."""
-        slices = UniformArcLengthDiscretizer.get_slices(unit_secondary, 4)
-        for i in range(1, len(slices)):
-            assert slices[i] > slices[i - 1]
+    def test_near_uniform_when_not_divisible(self):
+        """Non-divisible turn counts snap to the nearest whole turn: slice
+        lengths stay within half a turn pitch of uniform."""
+        sec = _uniform_secondary(turns=10.0, length=10.0)
+        order = 4
+        pitch = 1.0  # length / turns
+        slices = UniformArcLengthDiscretizer.get_slices(sec, order)
+        target = 10.0 / order
+        for a, b in zip(slices[:-1], slices[1:]):
+            assert abs(sec.curve.arc_length_between(a, b) - target) <= 0.5 * pitch + 1e-9
 
-    def test_slices_cover_full_range(self, unit_secondary):
-        """First boundary is t_min, last boundary is t_max."""
-        slices = UniformArcLengthDiscretizer.get_slices(unit_secondary, 5)
-        assert slices[0] == pytest.approx(0.0)
-        assert slices[-1] == pytest.approx(1.0)
+    def test_graded_winding_slices_follow_arc_length_not_turns(self):
+        """With 80% of turns in the first 20% of the height, uniform
+        ARC-LENGTH targets put most slice boundaries in the dense band's
+        complement - the discretizer divides the geometry, not the turns."""
+        sec = _graded_secondary()
+        slices = UniformArcLengthDiscretizer.get_slices(sec, 5)
+        # Uniform arclength targets: 2, 4, 6, 8. Dense band ends at 2.0.
+        interior = slices[1:-1]
+        assert sum(1 for t in interior if t > 2.0) >= 3
 
-    def test_slices_are_contiguous(self, unit_secondary):
-        """Boundaries are shared between adjacent slices by construction."""
-        slices = UniformArcLengthDiscretizer.get_slices(unit_secondary, 5)
-        # Verify no gaps: boundary i is the end of slice i-1 and start of slice i
-        for i in range(1, len(slices) - 1):
-            assert isinstance(slices[i], float)
+    def test_order_exceeding_turns_rejected(self):
+        sec = _uniform_secondary(turns=10.0)
+        with pytest.raises(ValueError, match="exceeds the secondary's total turn count"):
+            UniformArcLengthDiscretizer.get_slices(sec, 30)
 
-    def test_uniform_arc_length(self, unit_secondary):
-        """Each slice should have equal arc length."""
-        n = 4
-        slices = UniformArcLengthDiscretizer.get_slices(unit_secondary, n)
-        curve = unit_secondary.curve
+    def test_order_equal_to_turns_gives_one_turn_per_slice(self):
+        sec = _uniform_secondary(turns=10.0, length=10.0)
+        slices = UniformArcLengthDiscretizer.get_slices(sec, 10)
+        assert len(slices) == 11
+        for k, t in enumerate(slices[:-1]):
+            assert sec.turn_fxn(t) == pytest.approx(k, abs=1e-9)
 
-        expected_arc = 10.0 / n  # total_length / n
-        for i in range(n):
-            arc = curve.arc_length_between(slices[i], slices[i + 1])
-            assert arc == pytest.approx(expected_arc, abs=1e-8)
-
-    def test_single_slice(self, unit_secondary):
-        """discretization_order=1 should return two boundaries spanning the whole curve."""
-        slices = UniformArcLengthDiscretizer.get_slices(unit_secondary, 1)
-        assert len(slices) == 2
-        assert slices[0] == pytest.approx(0.0)
-        assert slices[1] == pytest.approx(1.0)
-
-    def test_shifted_parameter_range(self, shifted_secondary):
-        """Verify correct behavior when t_min != 0."""
-        n = 5
-        slices = UniformArcLengthDiscretizer.get_slices(shifted_secondary, n)
-        curve = shifted_secondary.curve
-
-        assert slices[0] == pytest.approx(2.0)
-        assert slices[-1] == pytest.approx(7.0)
-
-        expected_arc = 25.0 / n
-        for i in range(n):
-            arc = curve.arc_length_between(slices[i], slices[i + 1])
-            assert arc == pytest.approx(expected_arc, abs=1e-8)
-
-    def test_large_discretization(self, unit_secondary):
-        """Stress test with many slices — should still be contiguous and uniform."""
-        n = 100
-        slices = UniformArcLengthDiscretizer.get_slices(unit_secondary, n)
-        assert len(slices) == n + 1
-        assert slices[0] == pytest.approx(0.0)
-        assert slices[-1] == pytest.approx(1.0)
-
-        expected_arc = 10.0 / n
-        curve = unit_secondary.curve
-        for i in range(n):
-            arc = curve.arc_length_between(slices[i], slices[i + 1])
-            assert arc == pytest.approx(expected_arc, abs=1e-6)
+    def test_grouping_matches_tent_nodes(self):
+        """The whole point of the turn-boundary convention: the segment
+        grouping derived from the slices is exact and has exactly one group
+        per slice."""
+        from app.simulation.distributed_element_matrices.turn_sampling import (
+            secondary_turn_points,
+            segment_start_indices,
+        )
+        for sec in (_uniform_secondary(turns=24.0), _graded_secondary()):
+            order = 6
+            slices = UniformArcLengthDiscretizer.get_slices(sec, order)
+            pts = secondary_turn_points(sec)
+            idx = segment_start_indices(sec, tuple(slices), len(pts))
+            assert len(idx) == order
+            assert idx[0] == 0
