@@ -1,11 +1,18 @@
 """
 Converters from coil schemas to domain models.
 """
-from app.geometry import CircularCrossSection, RectangularCrossSection
+from app.geometry import (
+    CatmullRomSpline,
+    CircularArc,
+    CircularCrossSection,
+    LineSegment,
+    RectangularCrossSection,
+    UnitSpeedCurve,
+)
 from app.models.coil_models import (
+    CurvePrimarySpec,
+    CurveSecondaryConductorSpec,
     GroundedConductorSpec,
-    LinearPrimarySpec,
-    LinearSecondaryConductorSpec,
     ToploadSpec,
 )
 from app.models.materials import Material
@@ -14,11 +21,17 @@ from app.models.simulation_models import (
     BoundaryConditionType,
     SimulatableTeslaCoil,
 )
-from app.models.turn_profiles import UniformTurns
+from app.models.turn_profiles import GradedTurns, UniformTurns
 from app.schemas.component_schemas import (
     CircularCrossSectionSchema,
+    GradedTurnProfileSchema,
     RectangularCrossSectionSchema,
     UniformTurnProfileSchema,
+)
+from app.schemas.geometry_schemas import (
+    ArcPathSchema,
+    LinePathSchema,
+    SplinePathSchema,
 )
 from .geometry_converters import geometry_from_schema
 
@@ -32,10 +45,23 @@ def material_from_schema(schema) -> Material:
 
 def turn_distribution_from_schema(schema):
     if isinstance(schema, UniformTurnProfileSchema):
-        # The schema's legacy t_min/t_max fields are ignored: the profile's
-        # domain is derived from the winding curve by the spec itself.
         return UniformTurns(schema.total_turns)
+    if isinstance(schema, GradedTurnProfileSchema):
+        return GradedTurns(points=tuple(tuple(p) for p in schema.points))
     raise ValueError(f"Unknown turn profile schema: {type(schema).__name__}")
+
+
+def path_from_schema(schema) -> UnitSpeedCurve:
+    """Build the unit-speed winding centerline a path schema describes."""
+    if isinstance(schema, LinePathSchema):
+        return LineSegment(tuple(schema.start), tuple(schema.end))
+    if isinstance(schema, ArcPathSchema):
+        return CircularArc.from_endpoints(
+            tuple(schema.start), tuple(schema.end), schema.radius
+        )
+    if isinstance(schema, SplinePathSchema):
+        return CatmullRomSpline(points=tuple(tuple(p) for p in schema.points))
+    raise ValueError(f"Unknown path schema: {type(schema).__name__}")
 
 
 def cross_section_from_schema(schema):
@@ -55,23 +81,21 @@ def boundary_condition_from_schema(schema) -> BoundaryCondition:
     )
 
 
-def secondary_from_schema(schema) -> LinearSecondaryConductorSpec:
-    return LinearSecondaryConductorSpec(
+def secondary_from_schema(schema) -> CurveSecondaryConductorSpec:
+    return CurveSecondaryConductorSpec(
         material=material_from_schema(schema.material),
         turns=turn_distribution_from_schema(schema.turn_fxn),
-        start=tuple(schema.start),
-        end=tuple(schema.end),
+        path=path_from_schema(schema.path),
         wire_dia=schema.wire_dia,
     )
 
 
-def primary_from_schema(schema) -> LinearPrimarySpec:
-    return LinearPrimarySpec(
+def primary_from_schema(schema) -> CurvePrimarySpec:
+    return CurvePrimarySpec(
         material=material_from_schema(schema.material),
         turns=turn_distribution_from_schema(schema.turn_fxn),
         cross_section=cross_section_from_schema(schema.cross_section),
-        start=tuple(schema.start),
-        end=tuple(schema.end),
+        path=path_from_schema(schema.path),
         tank_capacitance=schema.tank_capacitance,
         lead_length=schema.lead_length,
         lead_dia=schema.lead_dia,

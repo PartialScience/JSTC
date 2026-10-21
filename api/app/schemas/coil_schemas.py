@@ -2,11 +2,10 @@
 Pydantic schemas for a full Tesla coil configuration.
 
 Mirrors the domain models (app.models.coil_models,
-app.models.simulation_models). The secondary and primary are represented
-as a straight winding centerline plus a serializable turn profile, matching
-LinearSecondaryConductorSpec / LinearPrimarySpec.
+app.models.simulation_models). Each winding is a parametric centerline PATH
+in the (r, z) plane (line / arc / spline) plus a serializable turn profile.
 """
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -16,25 +15,23 @@ from .component_schemas import (
     MaterialSchema,
     TurnProfileSchema,
 )
-from .geometry_schemas import GeometrySchema
+from .geometry_schemas import GeometrySchema, PathSchema
 
 
-class LinearSecondaryConductorSchema(BaseModel):
-    """A secondary wound along a straight (r, z) centerline."""
+class SecondaryConductorSchema(BaseModel):
+    """A secondary wound along a parametric (r, z) centerline path."""
     material: MaterialSchema = Field(MaterialSchema.COPPER)
-    turn_fxn: TurnProfileSchema = Field(..., description="Cumulative turn profile")
-    start: Tuple[float, float] = Field(..., description="Winding start (r, z)")
-    end: Tuple[float, float] = Field(..., description="Winding end (r, z)")
+    turn_fxn: TurnProfileSchema = Field(..., description="Turn distribution")
+    path: PathSchema = Field(..., description="Winding centerline path")
     wire_dia: float = Field(..., gt=0, description="Wire diameter")
 
 
-class LinearPrimarySchema(BaseModel):
-    """A primary wound along a straight (r, z) centerline."""
+class PrimarySchema(BaseModel):
+    """A primary wound along a parametric (r, z) centerline path."""
     material: MaterialSchema = Field(MaterialSchema.COPPER)
-    turn_fxn: TurnProfileSchema = Field(..., description="Cumulative turn profile")
+    turn_fxn: TurnProfileSchema = Field(..., description="Turn distribution")
     cross_section: CrossSectionSchema = Field(..., description="Conductor cross-section")
-    start: Tuple[float, float] = Field(..., description="Winding start (r, z)")
-    end: Tuple[float, float] = Field(..., description="Winding end (r, z)")
+    path: PathSchema = Field(..., description="Winding centerline path")
     tank_capacitance: float = Field(0.0, ge=0, description="Tank capacitance (Farads)")
     lead_length: float = Field(0.0, ge=0, description="Connection lead length")
     lead_dia: float = Field(0.0, ge=0, description="Connection lead diameter")
@@ -52,8 +49,8 @@ class GroundedConductorSchema(BaseModel):
 
 class SimulatableTeslaCoilSchema(BaseModel):
     """A complete coil plus its simulation domain and boundary conditions."""
-    secondary: LinearSecondaryConductorSchema
-    primary: Optional[LinearPrimarySchema] = None
+    secondary: SecondaryConductorSchema
+    primary: Optional[PrimarySchema] = None
     toploads: List[ToploadSchema] = Field(default_factory=list)
     grounds: List[GroundedConductorSchema] = Field(default_factory=list)
 

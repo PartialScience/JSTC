@@ -26,6 +26,10 @@ ARC_INSTANCES = [
         CircularArc((10.5, 48.8), 3.125, -math.pi, math.pi),
         id="toroid-cross-section",
     ),
+    pytest.param(
+        CircularArc((5.0, 20.0), 4.0, math.pi, math.pi / 3),
+        id="clockwise-arc",
+    ),
 ]
 
 
@@ -36,11 +40,20 @@ class TestConstruction:
         with pytest.raises(ValueError):
             CircularArc((0, 0), -1.0, 0.0, 1.0)
 
-    def test_rejects_decreasing_angles(self):
+    def test_rejects_zero_sweep(self):
         with pytest.raises(ValueError):
             CircularArc((0, 0), 1.0, 1.0, 1.0)
-        with pytest.raises(ValueError):
-            CircularArc((0, 0), 1.0, 2.0, 1.0)
+
+    def test_clockwise_arc_supported(self):
+        """Decreasing angles are a CW traversal: unit tangent along travel,
+        negative curvature (left normal points away from the center)."""
+        import math as m
+        cw = CircularArc((0.0, 0.0), 2.0, m.pi / 2, 0.0)
+        assert cw.point_at(0.0) == pytest.approx((0.0, 2.0))
+        assert cw.point_at(cw.t_max) == pytest.approx((2.0, 0.0))
+        # At the top of the circle, CW travel heads +x
+        assert cw.derivative_at(0.0) == pytest.approx((1.0, 0.0))
+        assert cw.curvature_at(1.0) == pytest.approx(-0.5)
 
     def test_rejects_sweep_beyond_full_circle(self):
         with pytest.raises(ValueError):

@@ -9,14 +9,15 @@ from app.geometry.curves.base import UnitSpeedCurve
 
 @dataclass(frozen=True)
 class CircularArc(UnitSpeedCurve):
-    """An arc of a circle traversed CCW, parameterized by ARC LENGTH:
-    t runs over [0, radius * (angle_end - angle_start)] and the angle at
-    parameter t is angle_start + t / radius. Every quantity is closed-form.
+    """An arc of a circle, parameterized by ARC LENGTH: t runs over
+    [0, radius * |angle_end - angle_start|] and the angle at parameter t is
+    angle_start + sign(sweep) * t / radius. Every quantity is closed-form.
 
-    The angle range must be increasing (CCW traversal); to traverse
-    clockwise, consume the arc in reverse (see BoundaryPiece.reverse).
-    With the left-normal sign convention, a CCW arc has curvature
-    +1/radius (the left normal points toward the center).
+    ``angle_start`` and ``angle_end`` are the angles of the START and END
+    of the traversal: an increasing range is a CCW arc, a decreasing range
+    a CW arc. With the left-normal sign convention a CCW arc has curvature
+    +1/radius (left normal toward the center) and a CW arc -1/radius (left
+    normal away from the center).
     """
 
     center: tuple[float, float]
@@ -27,19 +28,67 @@ class CircularArc(UnitSpeedCurve):
     def __post_init__(self):
         if self.radius <= 0:
             raise ValueError(f"Radius must be positive, got {self.radius}")
-        if self.angle_end <= self.angle_start:
+        if self.angle_end == self.angle_start:
+            raise ValueError("angle_end must differ from angle_start")
+        if abs(self.angle_end - self.angle_start) > 2 * math.pi + 1e-12:
             raise ValueError(
-                f"angle_end ({self.angle_end}) must exceed angle_start ({self.angle_start})"
+                f"Sweep {abs(self.angle_end - self.angle_start)} exceeds a full circle"
             )
-        if self.angle_end - self.angle_start > 2 * math.pi + 1e-12:
+
+    @classmethod
+    def from_endpoints(
+        cls,
+        start: tuple[float, float],
+        end: tuple[float, float],
+        radius: float,
+    ) -> "CircularArc":
+        """The minor arc from ``start`` to ``end`` with the given SIGNED
+        radius - the user-facing arc description (start point, end point,
+        radius), as the editor specifies it.
+
+        Sign convention: positive radius places the center on the LEFT of
+        the start->end direction, so the path bends left (CCW, positive
+        curvature); negative radius bends right (CW). |radius| must be at
+        least half the chord length. The minor arc (sweep <= pi) is always
+        taken; larger sweeps are built from multiple arcs or a spline.
+        """
+        ax, ay = float(start[0]), float(start[1])
+        bx, by = float(end[0]), float(end[1])
+        cx_, cy_ = bx - ax, by - ay
+        chord = math.hypot(cx_, cy_)
+        if chord == 0.0:
+            raise ValueError("Arc start and end must differ")
+        r = abs(float(radius))
+        if radius == 0.0:
+            raise ValueError("Arc radius must be non-zero")
+        if r < chord / 2.0:
             raise ValueError(
-                f"Sweep {self.angle_end - self.angle_start} exceeds a full circle"
+                f"Arc radius {r} is smaller than half the chord ({chord / 2.0:.6g}); "
+                "no circle of that radius passes through both endpoints."
             )
+        side = 1.0 if radius > 0 else -1.0
+        # Unit left normal of the start->end direction
+        nx, ny = -cy_ / chord, cx_ / chord
+        # Center: on the chosen side of the chord midpoint
+        h = math.sqrt(max(r * r - (chord / 2.0) ** 2, 0.0))
+        mx, my = (ax + bx) / 2.0, (ay + by) / 2.0
+        center = (mx + side * h * nx, my + side * h * ny)
+
+        angle_start = math.atan2(ay - center[1], ax - center[0])
+        sweep = 2.0 * math.asin(min(1.0, chord / (2.0 * r)))
+        # Center on the left => bending left => CCW (increasing angles)
+        angle_end = angle_start + side * sweep
+        return cls(center=center, radius=r, angle_start=angle_start, angle_end=angle_end)
 
     # -- parameter/angle mapping ------------------------------------------------
 
+    @property
+    def _direction(self) -> float:
+        """+1 for CCW (increasing angles), -1 for CW."""
+        return 1.0 if self.angle_end > self.angle_start else -1.0
+
     def _angle_at(self, t: float) -> float:
-        return self.angle_start + t / self.radius
+        return self.angle_start + self._direction * t / self.radius
 
     @property
     def t_min(self) -> float:
@@ -47,7 +96,7 @@ class CircularArc(UnitSpeedCurve):
 
     @property
     def t_max(self) -> float:
-        return self.radius * (self.angle_end - self.angle_start)
+        return self.radius * abs(self.angle_end - self.angle_start)
 
     # -- geometry ----------------------------------------------------------------
 
@@ -59,12 +108,13 @@ class CircularArc(UnitSpeedCurve):
         )
 
     def derivative_at(self, t: float) -> tuple[float, float]:
-        """Unit tangent in the CCW direction."""
+        """Unit tangent in the traversal direction."""
         a = self._angle_at(t)
-        return (-math.sin(a), math.cos(a))
+        d = self._direction
+        return (-d * math.sin(a), d * math.cos(a))
 
     def curvature_at(self, t: float) -> float:
-        return 1.0 / self.radius
+        return self._direction / self.radius
 
     def max_abs_curvature(self) -> float:
         return 1.0 / self.radius
@@ -85,12 +135,14 @@ class CircularArc(UnitSpeedCurve):
             return t1
         phi = math.atan2(dy, dx)
 
+        # Angular window in traversal order; normalize to the increasing
+        # interval [lo, hi] so the mod-2*pi search is direction-agnostic.
         a1, a2 = self._angle_at(t1), self._angle_at(t2)
-        # Find the representative of phi (mod 2*pi) inside [a1, a2], if any
-        k_min = math.ceil((a1 - phi) / (2 * math.pi))
+        lo, hi = (a1, a2) if a1 <= a2 else (a2, a1)
+        k_min = math.ceil((lo - phi) / (2 * math.pi))
         candidate = phi + 2 * math.pi * k_min
-        if candidate <= a2:
-            return (candidate - self.angle_start) * self.radius
+        if candidate <= hi:
+            return self._direction * (candidate - self.angle_start) * self.radius
 
         # Outside the range: nearer endpoint wins
         d1 = sum((a - b) ** 2 for a, b in zip(point, self.point_at(t1)))
@@ -147,7 +199,9 @@ class CircularArc(UnitSpeedCurve):
         (left-positive offset, curvature +1/R: the left normal points toward
         the center). Sampling uses that arc's exact sagitta relation,
         expressed in THIS curve's (the centerline's) parameters."""
-        r_off = abs(self.radius - offset)
+        # Curvature is signed by direction: a left offset moves toward the
+        # center on a CCW arc and away from it on a CW arc.
+        r_off = abs(self.radius - self._direction * offset)
         if r_off == 0.0:
             raise ValueError("Offset equals the arc radius; the offset curve degenerates to a point")
         phi = self._max_step_angle(r_off, max_chord_error)

@@ -52,7 +52,7 @@ def tube_self_approach(
     """Check whether the tube of the given radius around the curve
     approaches itself.
 
-    The curve is sampled into a polyline at a chord tolerance of radius/4.
+    The curve is sampled into a polyline at a chord tolerance of radius/16.
     A pair of polyline segments marks a self-approach when they are closer
     than the tube diameter IN SPACE while being far apart ALONG the curve.
     The along-curve criterion is the semicircle bound: two points of a
@@ -64,7 +64,10 @@ def tube_self_approach(
     distinct passes of the winding - a genuine self-approach.
 
     Sampling tolerances are credited in the safe direction on both tests, so
-    a legitimately clear tube never fails from discretization.
+    a legitimately clear tube never fails from discretization; the price is
+    a blind band of radius/8 - a tube overlapping by less than that may
+    pass. (The check exists to catch designs that are wrong, not to
+    adjudicate ones that graze.)
 
     Returns:
         None when the tube is clear, else the pair of parameter values
@@ -72,7 +75,7 @@ def tube_self_approach(
     """
     from math import pi, sqrt
 
-    tol = radius / 4.0
+    tol = radius / 16.0
     params = curve.sample_params(tol)
     pts = [curve.point_at(t) for t in params]
     n_seg = len(pts) - 1

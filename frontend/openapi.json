@@ -343,6 +343,58 @@
         "title": "AnalyzeRequest",
         "description": "Request a full analysis, reusing a precomputed matrix bundle.\n\nThe bundle must match the coil's geometry (its geometry_fingerprint is\nvalidated); a mismatch returns 409. Omit the bundle to have the server\ncompute it inline (equivalent to calling the matrices endpoint first,\nbut without returning the bundle to the client)."
       },
+      "ArcPathSchema": {
+        "properties": {
+          "kind": {
+            "const": "arc",
+            "title": "Kind",
+            "default": "arc"
+          },
+          "start": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Start",
+            "description": "Path start (r, z)"
+          },
+          "end": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "End",
+            "description": "Path end (r, z)"
+          },
+          "radius": {
+            "type": "number",
+            "title": "Radius",
+            "description": "Signed arc radius (positive bends left of travel)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "radius"
+        ],
+        "title": "ArcPathSchema",
+        "description": "A circular-arc centerline (the minor arc through start and end).\n\nThe SIGN of the radius picks the bend direction: positive bends left of\nthe start->end direction (center on the left, CCW), negative bends\nright. |radius| must be at least half the chord length."
+      },
       "BoundaryConditionSchema": {
         "properties": {
           "bc_type": {
@@ -430,6 +482,36 @@
         "title": "CircularCrossSectionSchema",
         "description": "Round conductor of a given diameter."
       },
+      "ComputedValue": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why the value was not computed (null when computed)"
+          }
+        },
+        "type": "object",
+        "title": "ComputedValue",
+        "description": "A derived output that is only valid under documented assumptions.\n\n``value`` is null when the assumptions do not hold for this coil, with\n``reason`` explaining why (chained through dependent values, e.g. \"Q\ncould not be computed because it depends on Rac: ...\"). The UI renders\nnull values as \"Not computed\" with the reason as a tooltip."
+      },
       "CoupledOutputs": {
         "properties": {
           "mode_frequencies": {
@@ -481,23 +563,15 @@
             "title": "Half Cycles For Energy Transfer"
           },
           "energy_transfer_time": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Energy Transfer Time",
-            "description": "Null when the primary tank frequency is undefined"
+            "$ref": "#/components/schemas/ComputedValue"
           }
         },
         "type": "object",
         "required": [
           "mutual_inductance",
           "coupling_coefficient",
-          "half_cycles_for_energy_transfer"
+          "half_cycles_for_energy_transfer",
+          "energy_transfer_time"
         ],
         "title": "CouplingOutputs"
       },
@@ -611,12 +685,12 @@
           "hot_end": {
             "type": "string",
             "enum": [
-              "inner",
-              "outer"
+              "start",
+              "end"
             ],
             "title": "Hot End",
-            "description": "Which primary end carries V_p (E-field only)",
-            "default": "outer"
+            "description": "Which primary winding end carries V_p (E-field only)",
+            "default": "end"
           },
           "grid_nr": {
             "type": "integer",
@@ -733,6 +807,40 @@
         ],
         "title": "FieldResponse",
         "description": "A complex field sampled on a regular grid, row-major (z outer, r\ninner). The client reshapes ``real``/``imag`` to (nz, nr) and takes the\ngradient/curl (using unit_scale for metres) for E or B."
+      },
+      "GradedTurnProfileSchema": {
+        "properties": {
+          "kind": {
+            "const": "graded",
+            "title": "Kind",
+            "default": "graded"
+          },
+          "points": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "minItems": 2,
+            "title": "Points",
+            "description": "(position u, cumulative turns) control points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "points"
+        ],
+        "title": "GradedTurnProfileSchema",
+        "description": "Cumulative turn counts at control points along the winding.\n\nEach point is (u, n): u the normalized position along the path (0 =\nstart, 1 = end) and n the cumulative turn count there. The first point\nmust be (0, 0), the last must have u = 1 (its n is the total turn\ncount), and both coordinates must be strictly increasing. Turns\ninterpolate linearly between points (constant pitch within each band)."
       },
       "GroundedConductorSchema": {
         "properties": {
@@ -883,49 +991,12 @@
         ],
         "title": "ImpedanceResponse"
       },
-      "LinearPrimarySchema": {
+      "LinePathSchema": {
         "properties": {
-          "material": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MaterialSchema"
-              }
-            ],
-            "default": "copper"
-          },
-          "turn_fxn": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/UniformTurnProfileSchema"
-              }
-            ],
-            "title": "Turn Fxn",
-            "description": "Cumulative turn profile",
-            "discriminator": {
-              "propertyName": "kind",
-              "mapping": {
-                "uniform": "#/components/schemas/UniformTurnProfileSchema"
-              }
-            }
-          },
-          "cross_section": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/CircularCrossSectionSchema"
-              },
-              {
-                "$ref": "#/components/schemas/RectangularCrossSectionSchema"
-              }
-            ],
-            "title": "Cross Section",
-            "description": "Conductor cross-section",
-            "discriminator": {
-              "propertyName": "kind",
-              "mapping": {
-                "circular": "#/components/schemas/CircularCrossSectionSchema",
-                "rectangular": "#/components/schemas/RectangularCrossSectionSchema"
-              }
-            }
+          "kind": {
+            "const": "line",
+            "title": "Kind",
+            "default": "line"
           },
           "start": {
             "prefixItems": [
@@ -940,7 +1011,7 @@
             "maxItems": 2,
             "minItems": 2,
             "title": "Start",
-            "description": "Winding start (r, z)"
+            "description": "Path start (r, z)"
           },
           "end": {
             "prefixItems": [
@@ -955,111 +1026,16 @@
             "maxItems": 2,
             "minItems": 2,
             "title": "End",
-            "description": "Winding end (r, z)"
-          },
-          "tank_capacitance": {
-            "type": "number",
-            "minimum": 0.0,
-            "title": "Tank Capacitance",
-            "description": "Tank capacitance (Farads)",
-            "default": 0.0
-          },
-          "lead_length": {
-            "type": "number",
-            "minimum": 0.0,
-            "title": "Lead Length",
-            "description": "Connection lead length",
-            "default": 0.0
-          },
-          "lead_dia": {
-            "type": "number",
-            "minimum": 0.0,
-            "title": "Lead Dia",
-            "description": "Connection lead diameter",
-            "default": 0.0
+            "description": "Path end (r, z)"
           }
         },
         "type": "object",
         "required": [
-          "turn_fxn",
-          "cross_section",
           "start",
           "end"
         ],
-        "title": "LinearPrimarySchema",
-        "description": "A primary wound along a straight (r, z) centerline."
-      },
-      "LinearSecondaryConductorSchema": {
-        "properties": {
-          "material": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MaterialSchema"
-              }
-            ],
-            "default": "copper"
-          },
-          "turn_fxn": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/UniformTurnProfileSchema"
-              }
-            ],
-            "title": "Turn Fxn",
-            "description": "Cumulative turn profile",
-            "discriminator": {
-              "propertyName": "kind",
-              "mapping": {
-                "uniform": "#/components/schemas/UniformTurnProfileSchema"
-              }
-            }
-          },
-          "start": {
-            "prefixItems": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "number"
-              }
-            ],
-            "type": "array",
-            "maxItems": 2,
-            "minItems": 2,
-            "title": "Start",
-            "description": "Winding start (r, z)"
-          },
-          "end": {
-            "prefixItems": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "number"
-              }
-            ],
-            "type": "array",
-            "maxItems": 2,
-            "minItems": 2,
-            "title": "End",
-            "description": "Winding end (r, z)"
-          },
-          "wire_dia": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Wire Dia",
-            "description": "Wire diameter"
-          }
-        },
-        "type": "object",
-        "required": [
-          "turn_fxn",
-          "start",
-          "end",
-          "wire_dia"
-        ],
-        "title": "LinearSecondaryConductorSchema",
-        "description": "A secondary wound along a straight (r, z) centerline."
+        "title": "LinePathSchema",
+        "description": "A straight centerline from start to end."
       },
       "MaterialSchema": {
         "type": "string",
@@ -1195,27 +1171,10 @@
             "title": "Total Inductance"
           },
           "resonant_frequency": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resonant Frequency",
-            "description": "Null when no tank capacitance is specified"
+            "$ref": "#/components/schemas/ComputedValue"
           },
           "percent_detuned": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Percent Detuned"
+            "$ref": "#/components/schemas/ComputedValue"
           },
           "wire_length": {
             "type": "number",
@@ -1239,12 +1198,116 @@
           "dc_inductance",
           "lead_inductance",
           "total_inductance",
+          "resonant_frequency",
+          "percent_detuned",
           "wire_length",
           "coil_pitch",
           "turn_spacing",
           "dc_resistance"
         ],
         "title": "PrimaryOutputs"
+      },
+      "PrimarySchema": {
+        "properties": {
+          "material": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MaterialSchema"
+              }
+            ],
+            "default": "copper"
+          },
+          "turn_fxn": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UniformTurnProfileSchema"
+              },
+              {
+                "$ref": "#/components/schemas/GradedTurnProfileSchema"
+              }
+            ],
+            "title": "Turn Fxn",
+            "description": "Turn distribution",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "graded": "#/components/schemas/GradedTurnProfileSchema",
+                "uniform": "#/components/schemas/UniformTurnProfileSchema"
+              }
+            }
+          },
+          "cross_section": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CircularCrossSectionSchema"
+              },
+              {
+                "$ref": "#/components/schemas/RectangularCrossSectionSchema"
+              }
+            ],
+            "title": "Cross Section",
+            "description": "Conductor cross-section",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "circular": "#/components/schemas/CircularCrossSectionSchema",
+                "rectangular": "#/components/schemas/RectangularCrossSectionSchema"
+              }
+            }
+          },
+          "path": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LinePathSchema"
+              },
+              {
+                "$ref": "#/components/schemas/ArcPathSchema"
+              },
+              {
+                "$ref": "#/components/schemas/SplinePathSchema"
+              }
+            ],
+            "title": "Path",
+            "description": "Winding centerline path",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "arc": "#/components/schemas/ArcPathSchema",
+                "line": "#/components/schemas/LinePathSchema",
+                "spline": "#/components/schemas/SplinePathSchema"
+              }
+            }
+          },
+          "tank_capacitance": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Tank Capacitance",
+            "description": "Tank capacitance (Farads)",
+            "default": 0.0
+          },
+          "lead_length": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Lead Length",
+            "description": "Connection lead length",
+            "default": 0.0
+          },
+          "lead_dia": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Lead Dia",
+            "description": "Connection lead diameter",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "turn_fxn",
+          "cross_section",
+          "path"
+        ],
+        "title": "PrimarySchema",
+        "description": "A primary wound along a parametric (r, z) centerline path."
       },
       "RectangleSchema": {
         "properties": {
@@ -1308,6 +1371,74 @@
         ],
         "title": "RectangularCrossSectionSchema",
         "description": "Rectangular (ribbon/strap) conductor."
+      },
+      "SecondaryConductorSchema": {
+        "properties": {
+          "material": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MaterialSchema"
+              }
+            ],
+            "default": "copper"
+          },
+          "turn_fxn": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UniformTurnProfileSchema"
+              },
+              {
+                "$ref": "#/components/schemas/GradedTurnProfileSchema"
+              }
+            ],
+            "title": "Turn Fxn",
+            "description": "Turn distribution",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "graded": "#/components/schemas/GradedTurnProfileSchema",
+                "uniform": "#/components/schemas/UniformTurnProfileSchema"
+              }
+            }
+          },
+          "path": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LinePathSchema"
+              },
+              {
+                "$ref": "#/components/schemas/ArcPathSchema"
+              },
+              {
+                "$ref": "#/components/schemas/SplinePathSchema"
+              }
+            ],
+            "title": "Path",
+            "description": "Winding centerline path",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "arc": "#/components/schemas/ArcPathSchema",
+                "line": "#/components/schemas/LinePathSchema",
+                "spline": "#/components/schemas/SplinePathSchema"
+              }
+            }
+          },
+          "wire_dia": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Wire Dia",
+            "description": "Wire diameter"
+          }
+        },
+        "type": "object",
+        "required": [
+          "turn_fxn",
+          "path",
+          "wire_dia"
+        ],
+        "title": "SecondaryConductorSchema",
+        "description": "A secondary wound along a parametric (r, z) centerline path."
       },
       "SecondaryOutputs": {
         "properties": {
@@ -1395,12 +1526,10 @@
             "title": "Dc Resistance"
           },
           "ac_resistance": {
-            "type": "number",
-            "title": "Ac Resistance"
+            "$ref": "#/components/schemas/ComputedValue"
           },
           "quality_factor": {
-            "type": "number",
-            "title": "Quality Factor"
+            "$ref": "#/components/schemas/ComputedValue"
           },
           "wire_weight": {
             "type": "number",
@@ -1438,12 +1567,12 @@
       "SimulatableTeslaCoilSchema": {
         "properties": {
           "secondary": {
-            "$ref": "#/components/schemas/LinearSecondaryConductorSchema"
+            "$ref": "#/components/schemas/SecondaryConductorSchema"
           },
           "primary": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/LinearPrimarySchema"
+                "$ref": "#/components/schemas/PrimarySchema"
               },
               {
                 "type": "null"
@@ -1577,6 +1706,40 @@
         ],
         "title": "SpiceResponse"
       },
+      "SplinePathSchema": {
+        "properties": {
+          "kind": {
+            "const": "spline",
+            "title": "Kind",
+            "default": "spline"
+          },
+          "points": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "minItems": 2,
+            "title": "Points",
+            "description": "Interpolation points (r, z), in order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "points"
+        ],
+        "title": "SplinePathSchema",
+        "description": "An interpolating centripetal Catmull-Rom spline through the points."
+      },
       "ToploadSchema": {
         "properties": {
           "material": {
@@ -1629,18 +1792,6 @@
             "exclusiveMinimum": 0.0,
             "title": "Total Turns",
             "description": "Total number of turns"
-          },
-          "t_min": {
-            "type": "number",
-            "title": "T Min",
-            "description": "Curve parameter at the start",
-            "default": 0.0
-          },
-          "t_max": {
-            "type": "number",
-            "title": "T Max",
-            "description": "Curve parameter at the end",
-            "default": 1.0
           }
         },
         "type": "object",
@@ -1648,7 +1799,7 @@
           "total_turns"
         ],
         "title": "UniformTurnProfileSchema",
-        "description": "Evenly wound: turns ramp linearly in the curve parameter."
+        "description": "Evenly wound: constant turn density along the winding path.\n\nThe profile's parameter domain is derived from the winding curve by the\nmodel itself, so the schema carries no domain fields."
       },
       "ValidationError": {
         "properties": {

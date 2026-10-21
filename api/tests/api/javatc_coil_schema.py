@@ -10,16 +10,14 @@ JAVATC_COIL_PAYLOAD = {
     "secondary": {
         "material": "copper",
         "turn_fxn": {"kind": "uniform", "total_turns": 895},
-        "start": [2.26925, 23.0],
-        "end": [2.26925, 44.8085],
+        "path": {"kind": "line", "start": [2.26925, 23.0], "end": [2.26925, 44.8085]},
         "wire_dia": 0.020101,
     },
     "primary": {
         "material": "copper",
         "turn_fxn": {"kind": "uniform", "total_turns": 8.438},
         "cross_section": {"kind": "circular", "diameter": 0.25},
-        "start": [3.75, 23.0],
-        "end": [7.969, 23.0],
+        "path": {"kind": "line", "start": [3.75, 23.0], "end": [7.969, 23.0]},
         "tank_capacitance": 0.0188e-6,
         "lead_length": 30.0,
         "lead_dia": 0.2,
