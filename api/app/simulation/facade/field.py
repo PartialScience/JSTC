@@ -71,15 +71,10 @@ class FieldView:
         )
 
     def _drive(self, frequency_hz: float, primary_current: complex):
-        return primary_driven_response(
-            self._system(),
-            frequency_hz,
-            primary_current=primary_current,
-            secondary_resistance=self._sim.secondary.drive_resistance,
-            primary_resistance=self._sim.primary.dc_resistance,
-            secondary_resistance_weights=np.array(
-                self._sim.secondary.segment_wire_length_fractions
-            ),
+        # One source of truth for the operating mode: the same driven
+        # response the /simulation/drive endpoint exposes.
+        return self._sim.coupled.driven_response(
+            frequency_hz, primary_current=primary_current
         )
 
     def electric_field(

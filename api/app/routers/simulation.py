@@ -5,6 +5,7 @@ milliseconds after cheap parameter changes.
     POST /simulation/matrices    coil            -> matrix bundle   (slow: FEM)
     POST /simulation/analyze     coil [+ bundle]  -> full analysis   (fast)
     POST /simulation/impedance   coil [+ bundle]  -> Z(w) sweep      (fast)
+    POST /simulation/drive       coil [+ bundle]  -> operating mode   (fast)
     POST /simulation/spice       coil [+ bundle]  -> SPICE netlist   (fast)
 
 The client obtains a bundle from /matrices, caches it, and passes it back
@@ -25,6 +26,8 @@ from app.converters import (
 from app.schemas import (
     AnalysisResponse,
     AnalyzeRequest,
+    DriveRequest,
+    DriveResponse,
     ImpedancePoint,
     ImpedanceRequest,
     ImpedanceResponse,
@@ -112,6 +115,39 @@ def impedance(request: ImpedanceRequest) -> ImpedanceResponse:
         for f, zi in zip(request.frequencies_hz, z)
     ]
     return ImpedanceResponse(points=points, bundle=bundle_schema)
+
+
+@router.post("/drive", response_model=DriveResponse)
+def drive(request: DriveRequest) -> DriveResponse:
+    """The operating mode at a drive frequency and primary current.
+
+    The steady-state phasor response - complex node voltages and segment
+    currents along the secondary, plus the primary EMF - phase-referenced
+    to the primary current. The SAME solve that seeds the field
+    visualization, so this pane and the fields can never disagree.
+    Requires a primary tank capacitance.
+    """
+    sim, bundle_schema = _wire(request.coil, request.bundle)
+    _require_coupled(sim)
+    response = sim.coupled.driven_response(
+        request.frequency_hz, primary_current=request.primary_current
+    )
+    node_s = sim.secondary.node_arclengths  # length N+1, grounded base first
+    mid_s = [(a + b) / 2.0 for a, b in zip(node_s[:-1], node_s[1:])]
+    v = response.node_voltages  # free nodes t_1..t_N; prepend the grounded base
+    return DriveResponse(
+        frequency_hz=request.frequency_hz,
+        primary_current=request.primary_current,
+        primary_voltage_real=float(response.primary_voltage.real),
+        primary_voltage_imag=float(response.primary_voltage.imag),
+        voltage_positions=list(node_s),
+        voltage_real=[0.0, *(float(x.real) for x in v)],
+        voltage_imag=[0.0, *(float(x.imag) for x in v)],
+        current_positions=mid_s,
+        current_real=[float(x.real) for x in response.segment_currents],
+        current_imag=[float(x.imag) for x in response.segment_currents],
+        bundle=bundle_schema,
+    )
 
 
 @router.post("/spice", response_model=SpiceResponse)

@@ -152,6 +152,48 @@
         }
       }
     },
+    "/simulation/drive": {
+      "post": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Drive",
+        "description": "The operating mode at a drive frequency and primary current.\n\nThe steady-state phasor response - complex node voltages and segment\ncurrents along the secondary, plus the primary EMF - phase-referenced\nto the primary current. The SAME solve that seeds the field\nvisualization, so this pane and the fields can never disagree.\nRequires a primary tank capacitance.",
+        "operationId": "drive_simulation_drive_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/simulation/spice": {
       "post": {
         "tags": [
@@ -614,6 +656,133 @@
           "energy_transfer_time"
         ],
         "title": "CouplingOutputs"
+      },
+      "DriveRequest": {
+        "properties": {
+          "coil": {
+            "$ref": "#/components/schemas/SimulatableTeslaCoilSchema"
+          },
+          "bundle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatrixBundleSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frequency_hz": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Frequency Hz",
+            "description": "Sinusoidal drive frequency"
+          },
+          "primary_current": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Primary Current",
+            "description": "Primary current magnitude [A]; its phase is the reference",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "coil",
+          "frequency_hz"
+        ],
+        "title": "DriveRequest",
+        "description": "The steady-state operating mode at a drive frequency and primary\ncurrent - the same phasor solve that seeds the field visualization.\n\nReuses a matrix bundle (fast: pure linear algebra, no FEM). Requires a\nprimary with a tank capacitance."
+      },
+      "DriveResponse": {
+        "properties": {
+          "frequency_hz": {
+            "type": "number",
+            "title": "Frequency Hz"
+          },
+          "primary_current": {
+            "type": "number",
+            "title": "Primary Current",
+            "description": "The drive magnitude [A] (phase reference)"
+          },
+          "primary_voltage_real": {
+            "type": "number",
+            "title": "Primary Voltage Real",
+            "description": "Re(V_p), the primary EMF [V]"
+          },
+          "primary_voltage_imag": {
+            "type": "number",
+            "title": "Primary Voltage Imag",
+            "description": "Im(V_p) [V]"
+          },
+          "voltage_positions": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Voltage Positions",
+            "description": "Arc length (m) of each voltage node, grounded base first"
+          },
+          "voltage_real": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Voltage Real",
+            "description": "Re(V) per node [V]"
+          },
+          "voltage_imag": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Voltage Imag",
+            "description": "Im(V) per node [V]"
+          },
+          "current_positions": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Current Positions",
+            "description": "Arc length (m) of each current segment midpoint"
+          },
+          "current_real": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Current Real",
+            "description": "Re(I) per segment [A]"
+          },
+          "current_imag": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Current Imag",
+            "description": "Im(I) per segment [A]"
+          },
+          "bundle": {
+            "$ref": "#/components/schemas/MatrixBundleSchema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "frequency_hz",
+          "primary_current",
+          "primary_voltage_real",
+          "primary_voltage_imag",
+          "voltage_positions",
+          "voltage_real",
+          "voltage_imag",
+          "current_positions",
+          "current_real",
+          "current_imag",
+          "bundle"
+        ],
+        "title": "DriveResponse",
+        "description": "Complex operating-mode profiles along the secondary winding.\n\nAll phasors are referenced to the primary current (zero phase). Voltage\nnodes include the grounded base (0 V at arc length 0), so\n``voltage_positions`` has one more entry than ``current_positions`` -\nthe same convention as the eigenmode outputs. Positions are arc length\nin meters along the winding centerline."
       },
       "EigenModesOutputs": {
         "properties": {

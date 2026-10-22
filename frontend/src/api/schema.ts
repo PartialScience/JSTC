@@ -92,6 +92,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/simulation/drive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Drive
+         * @description The operating mode at a drive frequency and primary current.
+         *
+         *     The steady-state phasor response - complex node voltages and segment
+         *     currents along the secondary, plus the primary EMF - phase-referenced
+         *     to the primary current. The SAME solve that seeds the field
+         *     visualization, so this pane and the fields can never disagree.
+         *     Requires a primary tank capacitance.
+         */
+        post: operations["drive_simulation_drive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/simulation/spice": {
         parameters: {
             query?: never;
@@ -370,6 +396,89 @@ export interface components {
             /** Half Cycles For Energy Transfer */
             half_cycles_for_energy_transfer: number;
             energy_transfer_time: components["schemas"]["ComputedValue"];
+        };
+        /**
+         * DriveRequest
+         * @description The steady-state operating mode at a drive frequency and primary
+         *     current - the same phasor solve that seeds the field visualization.
+         *
+         *     Reuses a matrix bundle (fast: pure linear algebra, no FEM). Requires a
+         *     primary with a tank capacitance.
+         */
+        DriveRequest: {
+            coil: components["schemas"]["SimulatableTeslaCoilSchema"];
+            bundle?: components["schemas"]["MatrixBundleSchema"] | null;
+            /**
+             * Frequency Hz
+             * @description Sinusoidal drive frequency
+             */
+            frequency_hz: number;
+            /**
+             * Primary Current
+             * @description Primary current magnitude [A]; its phase is the reference
+             * @default 1
+             */
+            primary_current: number;
+        };
+        /**
+         * DriveResponse
+         * @description Complex operating-mode profiles along the secondary winding.
+         *
+         *     All phasors are referenced to the primary current (zero phase). Voltage
+         *     nodes include the grounded base (0 V at arc length 0), so
+         *     ``voltage_positions`` has one more entry than ``current_positions`` -
+         *     the same convention as the eigenmode outputs. Positions are arc length
+         *     in meters along the winding centerline.
+         */
+        DriveResponse: {
+            /** Frequency Hz */
+            frequency_hz: number;
+            /**
+             * Primary Current
+             * @description The drive magnitude [A] (phase reference)
+             */
+            primary_current: number;
+            /**
+             * Primary Voltage Real
+             * @description Re(V_p), the primary EMF [V]
+             */
+            primary_voltage_real: number;
+            /**
+             * Primary Voltage Imag
+             * @description Im(V_p) [V]
+             */
+            primary_voltage_imag: number;
+            /**
+             * Voltage Positions
+             * @description Arc length (m) of each voltage node, grounded base first
+             */
+            voltage_positions: number[];
+            /**
+             * Voltage Real
+             * @description Re(V) per node [V]
+             */
+            voltage_real: number[];
+            /**
+             * Voltage Imag
+             * @description Im(V) per node [V]
+             */
+            voltage_imag: number[];
+            /**
+             * Current Positions
+             * @description Arc length (m) of each current segment midpoint
+             */
+            current_positions: number[];
+            /**
+             * Current Real
+             * @description Re(I) per segment [A]
+             */
+            current_real: number[];
+            /**
+             * Current Imag
+             * @description Im(I) per segment [A]
+             */
+            current_imag: number[];
+            bundle: components["schemas"]["MatrixBundleSchema"];
         };
         /**
          * EigenModesOutputs
@@ -1176,6 +1285,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImpedanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drive_simulation_drive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriveResponse"];
                 };
             };
             /** @description Validation Error */

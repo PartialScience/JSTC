@@ -1524,3 +1524,137 @@ button[data-testid='spice-export'] {
 .field-checkbox input {
   width: auto;
 }
+
+
+/* --- Operating-mode pane --- */
+
+.opmode-controls {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.opmode-controls .field {
+  min-width: 10rem;
+}
+
+.opmode-readouts {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+}
+.opmode-spacer {
+  flex: 1;
+}
+
+.opmode-body {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+.opmode-plots {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.opmode-chart {
+  width: 100%;
+  height: 180px;
+  min-width: 0;
+}
+.opmode-colorbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Desmos-style time slider row */
+.opmode-anim {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.25rem 0 0.6rem;
+}
+.opmode-play {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.opmode-play svg {
+  display: block;
+}
+.opmode-speed {
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.55rem;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.opmode-t {
+  font-size: 0.85rem;
+  min-width: 7rem;
+  font-variant-numeric: tabular-nums;
+}
+.opmode-slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+.opmode-anim-end {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+.opmode-colorbar-label {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.opmode-3d {
+  width: 100%;
+  height: 480px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border, #3334);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.opmode-3d canvas {
+  touch-action: none;
+}
+.opmode-3d-caption {
+  font-size: 0.78rem;
+  opacity: 0.85;
+  padding: 0.25rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.opmode-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+  flex: none;
+}
+.opmode-swatch:not(:first-child) {
+  margin-left: 0.6rem;
+}
