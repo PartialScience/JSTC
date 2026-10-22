@@ -21,6 +21,7 @@ CURVE_INSTANCES alone.
 import pytest
 
 from app.geometry.curves.catmull_rom import CatmullRomSpline
+from app.geometry.curves.piecewise import C1PiecewiseCurve
 from app.geometry.curves.circular_arc import CircularArc
 from app.geometry.curves.line_segment import LineSegment
 from app.geometry.curves.offset_curve import OffsetCurve
@@ -29,6 +30,10 @@ from tests.geometry.curves.test_line_segment import LINE_SEGMENT_INSTANCES
 from tests.geometry.curves.test_circular_arc import ARC_INSTANCES
 from tests.geometry.curves.test_offset_curve import OFFSET_CURVE_INSTANCES
 from tests.geometry.curves.test_catmull_rom import SPLINE_INSTANCES
+from tests.geometry.curves.test_piecewise import (
+    CLAMPED_SPLINE_INSTANCES,
+    PIECEWISE_INSTANCES,
+)
 
 
 # SubCurve instances: sub-ranges of each kind of parent curve.
@@ -60,7 +65,9 @@ UNIT_SPEED_INSTANCES = [
     *LINE_SEGMENT_INSTANCES,
     *ARC_INSTANCES,
     *SPLINE_INSTANCES,
+    *CLAMPED_SPLINE_INSTANCES,
     *SUB_CURVE_INSTANCES,
+    *PIECEWISE_INSTANCES,
     # ← register future winding-capable curve instance lists here
 ]
 
@@ -81,6 +88,7 @@ CURVE_CLASSES = [
     pytest.param(CircularArc, id="CircularArc"),
     pytest.param(CatmullRomSpline, id="CatmullRomSpline"),
     pytest.param(SubCurve, id="SubCurve"),
+    pytest.param(C1PiecewiseCurve, id="C1PiecewiseCurve"),
     pytest.param(OffsetCurve, id="OffsetCurve"),
     # ← register future curve classes here
 ]

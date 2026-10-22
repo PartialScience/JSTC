@@ -195,6 +195,10 @@ class CircularArc(UnitSpeedCurve):
         span = t_max - t_min
         n = max(1, math.ceil(span / max_step))
         grid = [t_min + span * i / n for i in range(n + 1)]
+        # (span * i) / n can drift a ulp off span at i == n; the contract
+        # requires samples to span the domain EXACTLY.
+        grid[0] = t_min
+        grid[-1] = t_max
         interior = sorted(t for t in set(include) if t_min < t < t_max)
         if interior:
             step = span / n
