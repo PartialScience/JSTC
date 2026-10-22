@@ -1401,6 +1401,12 @@ button[data-testid='spice-export'] {
   cursor: pointer;
 }
 
+.collapsible-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
 .collapse-arrow {
   border: none;
   background: none;

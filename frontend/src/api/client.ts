@@ -15,13 +15,19 @@ export const api = createClient<paths>({
 export type CoilSchema = components['schemas']['SimulatableTeslaCoilSchema'];
 export type SecondarySchema = components['schemas']['SecondaryConductorSchema'];
 export type PrimarySchema = components['schemas']['PrimarySchema'];
-export type PathSchema =
+export type SimplePathSchema =
   | components['schemas']['LinePathSchema']
   | components['schemas']['ArcPathSchema']
   | components['schemas']['SplinePathSchema'];
+export type PathSchema = SimplePathSchema | PiecewisePathSchema;
 export type LinePathSchema = components['schemas']['LinePathSchema'];
 export type ArcPathSchema = components['schemas']['ArcPathSchema'];
 export type SplinePathSchema = components['schemas']['SplinePathSchema'];
+export type PiecewisePathSchema = components['schemas']['PiecewisePathSchema'];
+export type ContinuationSchema =
+  | components['schemas']['LineFromSchema']
+  | components['schemas']['ArcFromSchema']
+  | components['schemas']['SplineFromSchema'];
 export type ToploadSchema = components['schemas']['ToploadSchema'];
 export type GroundSchema = components['schemas']['GroundedConductorSchema'];
 export type GeometrySchema =

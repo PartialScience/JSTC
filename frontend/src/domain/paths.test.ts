@@ -11,6 +11,8 @@ import {
   arcMidFromRadiusForm,
   evaluatePath,
   evaluateTurns,
+  junctionBefore,
+  pathEndpoints,
   normalizePath,
   pathControlPoints,
   translatePath,
@@ -139,5 +141,93 @@ describe('control-point helpers', () => {
     expect(moved.kind === 'spline' && moved.points[1]).toEqual([1.5, 2.5]);
     const shifted = translatePath(path, 1, -1);
     expect(shifted.kind === 'spline' && shifted.points[0]).toEqual([1, -1]);
+  });
+});
+
+describe('piecewise paths', () => {
+  const chain = {
+    kind: 'piecewise' as const,
+    first: { kind: 'line' as const, start: [2, 0] as Point, end: [2, 5] as Point },
+    rest: [
+      { kind: 'arc-from' as const, end: [4, 7] as Point },
+      { kind: 'line-from' as const, length: 2 },
+      { kind: 'spline-from' as const, points: [[7, 8], [8, 6]] as Point[] },
+    ],
+  };
+  type Point = [number, number];
+
+  it('is tangent-continuous across every junction', () => {
+    const p = evaluatePath(chain);
+    // junction arclengths: accumulate piece lengths by probing tangents densely
+    const n = 2000;
+    for (let i = 1; i < n; i++) {
+      const s = (p.length * i) / n;
+      const a = p.tangentAt(s - p.length / (4 * n));
+      const b = p.tangentAt(s + p.length / (4 * n));
+      const dot = a[0] * b[0] + a[1] * b[1];
+      expect(dot).toBeGreaterThan(0.99);
+    }
+  });
+
+  it('control points are the stored absolute coordinates', () => {
+    const pts = pathControlPoints(chain);
+    // first: 2 points; arc-from: 1; line-from: 0; spline-from: 2
+    expect(pts).toHaveLength(5);
+    expect(pts[2]).toEqual([4, 7]);
+    expect(pts[3]).toEqual([7, 8]);
+  });
+
+  it('withControlPoint edits the owning segment', () => {
+    const moved = withControlPoint(chain, 2, [4.5, 7.5]);
+    expect(moved.kind === 'piecewise' && moved.rest[0]).toEqual({
+      kind: 'arc-from',
+      end: [4.5, 7.5],
+    });
+  });
+
+  it('translatePath moves stored points and leaves lengths alone', () => {
+    const t = translatePath(chain, 1, -1);
+    if (t.kind !== 'piecewise') throw new Error('kind changed');
+    expect(t.first.kind === 'line' && t.first.start).toEqual([3, -1]);
+    expect(t.rest[1]).toEqual({ kind: 'line-from', length: 2 });
+    // Translation commutes with evaluation
+    const p0 = evaluatePath(chain);
+    const p1 = evaluatePath(t);
+    const q0 = p0.pointAt(p0.length * 0.77);
+    const q1 = p1.pointAt(p1.length * 0.77);
+    expect(q1[0]).toBeCloseTo(q0[0] + 1, 9);
+    expect(q1[1]).toBeCloseTo(q0[1] - 1, 9);
+  });
+
+  it('pathEndpoints evaluates a trailing line-from', () => {
+    const lineEnd = {
+      kind: 'piecewise' as const,
+      first: { kind: 'line' as const, start: [1, 0] as Point, end: [1, 2] as Point },
+      rest: [{ kind: 'line-from' as const, length: 3 }],
+    };
+    const { end } = pathEndpoints(lineEnd);
+    expect(end[0]).toBeCloseTo(1, 12);
+    expect(end[1]).toBeCloseTo(5, 12);
+  });
+
+  it('junctionBefore reports the inherited state and null when degenerate', () => {
+    const j = junctionBefore(chain, 1);
+    expect(j).not.toBeNull();
+    // After the arc the tangent is unit length
+    expect(Math.hypot(j!.tangent[0], j!.tangent[1])).toBeCloseTo(1, 9);
+    const broken = {
+      ...chain,
+      first: { kind: 'line' as const, start: [2, 0] as Point, end: [2, 0] as Point },
+    };
+    expect(junctionBefore(broken, 1)).toBeNull();
+  });
+
+  it('degenerate arc-from (straight ahead) throws for render guards to catch', () => {
+    const bad = {
+      kind: 'piecewise' as const,
+      first: { kind: 'line' as const, start: [1, 0] as Point, end: [1, 2] as Point },
+      rest: [{ kind: 'arc-from' as const, end: [1, 5] as Point }],
+    };
+    expect(() => evaluatePath(bad)).toThrow(/line-from/);
   });
 });

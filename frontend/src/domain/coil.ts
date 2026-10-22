@@ -190,6 +190,23 @@ function clampPathR(path: PathSchema): PathSchema {
   if (next.kind === 'spline') {
     const points = mapPreserve(next.points as Point[], clampR);
     if (points !== next.points) next = { ...next, points };
+  } else if (next.kind === 'piecewise') {
+    // Clamp every STORED coordinate: the first segment recursively, plus
+    // each continuation's absolute points (a line-from carries only a
+    // length, which r >= 0 cannot violate).
+    const first = clampPathR(next.first) as typeof next.first;
+    const rest = mapPreserve(next.rest, (cont) => {
+      if (cont.kind === 'arc-from') {
+        const end = clampR(cont.end as Point);
+        return end === cont.end ? cont : { ...cont, end };
+      }
+      if (cont.kind === 'spline-from') {
+        const points = mapPreserve(cont.points as Point[], clampR);
+        return points === cont.points ? cont : { ...cont, points };
+      }
+      return cont;
+    });
+    if (first !== next.first || rest !== next.rest) next = { ...next, first, rest };
   } else {
     const start = clampR(next.start as Point);
     const end = clampR(next.end as Point);
@@ -199,8 +216,7 @@ function clampPathR(path: PathSchema): PathSchema {
       if (mid !== next.mid) next = { ...next, mid };
     }
   }
-  // Repair path invariants (e.g. an arc radius made too small by an endpoint
-  // drag) in the same mutation gate that enforces r >= 0.
+  // Repair path invariants in the same mutation gate that enforces r >= 0.
   return normalizePath(next);
 }
 

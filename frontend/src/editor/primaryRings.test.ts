@@ -38,7 +38,7 @@ describe('primaryRings matches the solver fixture', () => {
   it('covers every path and turn-profile kind', () => {
     const pathKinds = new Set(cases.map((c) => c.path.kind));
     const turnKinds = new Set(cases.map((c) => c.turn_fxn.kind));
-    expect(pathKinds).toEqual(new Set(['line', 'arc', 'spline']));
+    expect(pathKinds).toEqual(new Set(['line', 'arc', 'spline', 'piecewise']));
     expect(turnKinds).toEqual(new Set(['uniform', 'graded']));
   });
 

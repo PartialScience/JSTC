@@ -18,7 +18,12 @@ import type {
   ToploadSchema,
 } from '../api/client';
 import type { ComponentRef, Point } from '../domain/coil';
-import { evaluatePath, pathControlPoints, withControlPoint } from '../domain/paths';
+import {
+  evaluatePath,
+  junctionBefore,
+  pathControlPoints,
+  withControlPoint,
+} from '../domain/paths';
 import type { ThemeColors } from '../theme';
 import {
   mirrorX,
@@ -65,36 +70,80 @@ function wireHandlePoint(path: PathSchema, half: number): Point {
   }
 }
 
-/** Handle metadata for every defining point of a path: line/arc expose
- *  start/end (same gestures and testIds as before); a spline exposes one
- *  handle per interpolation point. */
-function pathHandleDescriptors(path: PathSchema): Array<{
-  index: number;
+interface PathHandleDescriptor {
   world: Point;
   suffix: string;
-  menuHandle: 'start' | 'end' | 'vertex';
+  menuHandle?: 'start' | 'end' | 'vertex';
   vertexIndex?: number;
-}> {
+  /** Apply a drag of this handle to the path. */
+  apply: (path: PathSchema, p: Point) => PathSchema;
+}
+
+const applyIndex = (index: number) => (path: PathSchema, p: Point) =>
+  withControlPoint(path, index, p);
+
+/** Handle metadata for every draggable point of a path: line/arc expose
+ *  start/end (same gestures and testIds as before), a spline one handle per
+ *  interpolation point, and a piecewise path one handle per STORED point
+ *  plus a derived handle for each line-from endpoint (dragging it projects
+ *  onto the inherited tangent to set the length). Stored-point handles stay
+ *  available even while an upstream segment is transiently degenerate. */
+function pathHandleDescriptors(path: PathSchema): PathHandleDescriptor[] {
   const pts = pathControlPoints(path);
   if (path.kind === 'spline') {
     return pts.map((world, index) => ({
-      index,
       world,
       suffix: `pt-${index}`,
       menuHandle: 'vertex' as const,
       vertexIndex: index,
+      apply: applyIndex(index),
     }));
   }
   if (path.kind === 'arc') {
     return [
-      { index: 0, world: pts[0]!, suffix: 'start', menuHandle: 'start' as const },
-      { index: 1, world: pts[1]!, suffix: 'mid', menuHandle: 'vertex' as const, vertexIndex: 1 },
-      { index: 2, world: pts[2]!, suffix: 'end', menuHandle: 'end' as const },
+      { world: pts[0]!, suffix: 'start', menuHandle: 'start', apply: applyIndex(0) },
+      { world: pts[1]!, suffix: 'mid', menuHandle: 'vertex', vertexIndex: 1, apply: applyIndex(1) },
+      { world: pts[2]!, suffix: 'end', menuHandle: 'end', apply: applyIndex(2) },
     ];
   }
+  if (path.kind === 'piecewise') {
+    const out: PathHandleDescriptor[] = pts.map((world, index) => ({
+      world,
+      suffix: `pw-${index}`,
+      menuHandle: 'vertex' as const,
+      vertexIndex: index,
+      apply: applyIndex(index),
+    }));
+    // Derived endpoint handles for line-from segments
+    path.rest.forEach((cont, seg) => {
+      if (cont.kind !== 'line-from') return;
+      const junction = junctionBefore(path, seg);
+      if (!junction) return; // upstream degenerate: skip the derived handle
+      const { point, tangent } = junction;
+      out.push({
+        world: [point[0] + tangent[0] * cont.length, point[1] + tangent[1] * cont.length],
+        suffix: `seg${seg}-len`,
+        apply: (pth, p) => {
+          if (pth.kind !== 'piecewise') return pth;
+          const j = junctionBefore(pth, seg);
+          if (!j) return pth;
+          const len =
+            (p[0] - j.point[0]) * j.tangent[0] + (p[1] - j.point[1]) * j.tangent[1];
+          if (!(len > 1e-9)) return pth;
+          return {
+            ...pth,
+            rest: pth.rest.map((c, i) =>
+              i === seg && c.kind === 'line-from' ? { ...c, length: len } : c,
+            ),
+          };
+        },
+      });
+    });
+    return out;
+  }
   return [
-    { index: 0, world: pts[0]!, suffix: 'start', menuHandle: 'start' as const },
-    { index: 1, world: pts[1]!, suffix: 'end', menuHandle: 'end' as const },
+    { world: pts[0]!, suffix: 'start', menuHandle: 'start', apply: applyIndex(0) },
+    { world: pts[1]!, suffix: 'end', menuHandle: 'end', apply: applyIndex(1) },
   ];
 }
 
@@ -330,9 +379,11 @@ export function SecondaryShape(props: ComponentRenderProps<SecondarySchema>) {
               colors={colors}
               testId={`handle-secondary-${h.suffix}`}
               onDrag={(screen) =>
-                onPatch({ path: withControlPoint(data.path, h.index, fromScreen(screen[0], screen[1])) })
+                onPatch({ path: h.apply(data.path, fromScreen(screen[0], screen[1])) })
               }
-              onContextMenu={(e) => onContextMenu(e, target, h.menuHandle, h.vertexIndex)}
+              onContextMenu={(e) =>
+                h.menuHandle ? onContextMenu(e, target, h.menuHandle, h.vertexIndex) : undefined
+              }
             />
           ))}
           <Handle
@@ -464,9 +515,11 @@ export function PrimaryShape(props: ComponentRenderProps<PrimarySchema>) {
               colors={colors}
               testId={`handle-primary-${h.suffix}`}
               onDrag={(screen) =>
-                onPatch({ path: withControlPoint(data.path, h.index, fromScreen(screen[0], screen[1])) })
+                onPatch({ path: h.apply(data.path, fromScreen(screen[0], screen[1])) })
               }
-              onContextMenu={(e) => onContextMenu(e, target, h.menuHandle, h.vertexIndex)}
+              onContextMenu={(e) =>
+                h.menuHandle ? onContextMenu(e, target, h.menuHandle, h.vertexIndex) : undefined
+              }
             />
           ))}
           <Handle
