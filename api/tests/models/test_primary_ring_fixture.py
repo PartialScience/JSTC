@@ -103,6 +103,18 @@ CASES = [
     {"name": "graded-spline",
      "path": {"kind": "spline", "points": [[3.5, 18.0], [5.5, 19.0], [7.5, 22.0]]},
      "turn_fxn": {"kind": "graded", "points": [[0.0, 0.0], [0.5, 2.0], [1.0, 9.5]]}},
+    {"name": "piecewise-line-arc",
+     # QCW-style: vertical run flowing tangentially into an arc
+     "path": {"kind": "piecewise",
+              "first": {"kind": "line", "start": [4.0, 18.0], "end": [4.0, 22.0]},
+              "rest": [{"kind": "arc-from", "end": [7.0, 25.0]}]},
+     "turn_fxn": {"kind": "uniform", "total_turns": 10.5}},
+    {"name": "piecewise-all-continuations",
+     "path": {"kind": "piecewise",
+              "first": {"kind": "arc", "start": [3.0, 16.0], "mid": [4.2, 17.6], "end": [6.0, 18.2]},
+              "rest": [{"kind": "line-from", "length": 1.5},
+                       {"kind": "spline-from", "points": [[9.5, 20.0], [10.5, 22.5]]}]},
+     "turn_fxn": {"kind": "graded", "points": [[0.0, 0.0], [0.4, 3.0], [1.0, 12.0]]}},
 ]
 
 _PATH_ADAPTER = TypeAdapter(PathSchema)

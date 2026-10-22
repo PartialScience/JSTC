@@ -193,6 +193,30 @@ export interface components {
             bundle?: components["schemas"]["MatrixBundleSchema"] | null;
         };
         /**
+         * ArcFromSchema
+         * @description An arc tangent to the inherited direction, ending at ``end``.
+         *
+         *     The endpoint is the only free input; the tangent circle through it is
+         *     unique (closed form), with sweeps beyond a semicircle included. An
+         *     endpoint on the tangent line is rejected (straight ahead: use
+         *     line-from; behind: no tangent circle exists).
+         */
+        ArcFromSchema: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "arc-from";
+            /**
+             * End
+             * @description Arc endpoint (r, z)
+             */
+            end: [
+                number,
+                number
+            ];
+        };
+        /**
          * ArcPathSchema
          * @description A circular-arc centerline: the unique arc from ``start`` to ``end``
          *     passing through ``mid``.
@@ -590,6 +614,22 @@ export interface components {
             bundle: components["schemas"]["MatrixBundleSchema"];
         };
         /**
+         * LineFromSchema
+         * @description A straight segment continuing along the inherited tangent.
+         */
+        LineFromSchema: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "line-from";
+            /**
+             * Length
+             * @description Segment length (the only free DOF)
+             */
+            length: number;
+        };
+        /**
          * LinePathSchema
          * @description A straight centerline from start to end.
          */
@@ -671,6 +711,31 @@ export interface components {
             geometry_fingerprint: string;
         };
         /**
+         * PiecewisePathSchema
+         * @description A tangent-continuous chain: a full first segment plus continuations
+         *     that each inherit their start point and tangent from the previous one.
+         *
+         *     The reduced continuation forms make a kinked chain unrepresentable -
+         *     continuity is a property of the schema, not a validation afterthought.
+         */
+        PiecewisePathSchema: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "piecewise";
+            /**
+             * First
+             * @description The first segment (full description)
+             */
+            first: components["schemas"]["LinePathSchema"] | components["schemas"]["ArcPathSchema"] | components["schemas"]["SplinePathSchema"];
+            /**
+             * Rest
+             * @description Continuation segments, each built from the previous end
+             */
+            rest: (components["schemas"]["LineFromSchema"] | components["schemas"]["ArcFromSchema"] | components["schemas"]["SplineFromSchema"])[];
+        };
+        /**
          * PolygonSchema
          * @description A general polygon defined by >= 3 vertices.
          */
@@ -729,7 +794,7 @@ export interface components {
              * Path
              * @description Winding centerline path
              */
-            path: components["schemas"]["LinePathSchema"] | components["schemas"]["ArcPathSchema"] | components["schemas"]["SplinePathSchema"];
+            path: components["schemas"]["LinePathSchema"] | components["schemas"]["ArcPathSchema"] | components["schemas"]["SplinePathSchema"] | components["schemas"]["PiecewisePathSchema"];
             /**
              * Tank Capacitance
              * @description Tank capacitance (Farads)
@@ -805,7 +870,7 @@ export interface components {
              * Path
              * @description Winding centerline path
              */
-            path: components["schemas"]["LinePathSchema"] | components["schemas"]["ArcPathSchema"] | components["schemas"]["SplinePathSchema"];
+            path: components["schemas"]["LinePathSchema"] | components["schemas"]["ArcPathSchema"] | components["schemas"]["SplinePathSchema"] | components["schemas"]["PiecewisePathSchema"];
             /**
              * Wire Dia
              * @description Wire diameter
@@ -918,6 +983,26 @@ export interface components {
              */
             netlist: string;
             bundle: components["schemas"]["MatrixBundleSchema"];
+        };
+        /**
+         * SplineFromSchema
+         * @description A Catmull-Rom segment with its start tangent clamped to the
+         *     inherited direction, interpolating the given points.
+         */
+        SplineFromSchema: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "spline-from";
+            /**
+             * Points
+             * @description Interpolation points (r, z), in order
+             */
+            points: [
+                number,
+                number
+            ][];
         };
         /**
          * SplinePathSchema

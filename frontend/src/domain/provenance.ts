@@ -71,6 +71,15 @@ export const SCHEMA_PROVENANCE: Record<string, Provenance> = {
   'ArcPathSchema.end': 'untrusted',
   'SplinePathSchema.kind': 'untrusted',
   'SplinePathSchema.points': 'untrusted',
+  'PiecewisePathSchema.kind': 'untrusted',
+  'PiecewisePathSchema.first': 'untrusted',
+  'PiecewisePathSchema.rest': 'untrusted',
+  'LineFromSchema.kind': 'untrusted',
+  'LineFromSchema.length': 'untrusted',
+  'ArcFromSchema.kind': 'untrusted',
+  'ArcFromSchema.end': 'untrusted',
+  'SplineFromSchema.kind': 'untrusted',
+  'SplineFromSchema.points': 'untrusted',
 
   // --- turn profiles ------------------------------------------------------------
   'UniformTurnProfileSchema.kind': 'trusted',
@@ -139,6 +148,18 @@ export const UNVALIDATED_FEATURES: UnvalidatedFeature[] = [
     wording: 'Spline primary path',
     covers: ['SplinePathSchema'],
     applies: (coil) => coil.primary?.path.kind === 'spline',
+  },
+  {
+    id: 'piecewise-secondary',
+    wording: 'Piecewise secondary path',
+    covers: ['PiecewisePathSchema', 'LineFromSchema', 'ArcFromSchema', 'SplineFromSchema'],
+    applies: (coil) => coil.secondary.path.kind === 'piecewise',
+  },
+  {
+    id: 'piecewise-primary',
+    wording: 'Piecewise primary path',
+    covers: ['PiecewisePathSchema', 'LineFromSchema', 'ArcFromSchema', 'SplineFromSchema'],
+    applies: (coil) => coil.primary?.path.kind === 'piecewise',
   },
   {
     id: 'graded-secondary-turns',

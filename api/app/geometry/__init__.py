@@ -25,6 +25,11 @@ from .curves import (
     CircularArc,
     OffsetCurve,
     CatmullRomSpline,
+    CurveContinuation,
+    LineContinuation,
+    ArcContinuation,
+    SplineContinuation,
+    C1PiecewiseCurve,
 )
 
 from .boundary import BoundaryLoop, BoundaryPiece
@@ -52,6 +57,11 @@ __all__ = [
     'CircularArc',
     'OffsetCurve',
     'CatmullRomSpline',
+    'CurveContinuation',
+    'LineContinuation',
+    'ArcContinuation',
+    'SplineContinuation',
+    'C1PiecewiseCurve',
     # Boundary description
     'BoundaryLoop',
     'BoundaryPiece',

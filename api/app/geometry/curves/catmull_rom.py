@@ -23,6 +23,7 @@ construction to a 1e-12 relative tolerance and cached on the instance, with
 safeguarded-Newton inversion for the unit-speed parameter map. The shared
 unit-speed contract tests verify the result like any other curve.
 """
+import math
 from dataclasses import dataclass, field
 from typing import Tuple
 
@@ -43,9 +44,21 @@ _INVERT_REL_TOL = 1e-11
 @dataclass(frozen=True)
 class CatmullRomSpline(UnitSpeedCurve):
     """Interpolating centripetal Catmull-Rom spline through ``points``,
-    parameterized by arc length: t in [0, total length]."""
+    parameterized by arc length: t in [0, total length].
+
+    ``start_tangent`` (optional, a unit direction) clamps the curve's
+    initial tangent - the continuation form used inside piecewise paths.
+    The first span becomes the cubic Hermite with start derivative
+    ``start_tangent * |P1 - P0|`` (the first chord's length - the
+    deterministic magnitude convention, pinned by the golden fixture) and
+    an end derivative matching the next span's start direction (C1 in the
+    knot parameterization), or the natural end condition p''(1) = 0 when
+    the clamped span is the only one. All other spans are unchanged
+    centripetal Catmull-Rom.
+    """
 
     points: Tuple[Tuple[float, float], ...]
+    start_tangent: Tuple[float, float] | None = None
 
     # Derived, cached at construction - excluded from equality/hashing.
     _coeffs: np.ndarray = field(init=False, repr=False, compare=False, default=None)
@@ -61,8 +74,16 @@ class CatmullRomSpline(UnitSpeedCurve):
             if a == b:
                 raise ValueError("Consecutive spline points must be distinct")
         object.__setattr__(self, "points", pts)
+        if self.start_tangent is not None:
+            tx, tz = float(self.start_tangent[0]), float(self.start_tangent[1])
+            mag = math.hypot(tx, tz)
+            if not math.isfinite(mag) or abs(mag - 1.0) > 1e-9:
+                raise ValueError(
+                    f"start_tangent must be a unit vector, got magnitude {mag}"
+                )
+            object.__setattr__(self, "start_tangent", (tx, tz))
 
-        coeffs = _segment_coefficients(np.array(pts))
+        coeffs = _segment_coefficients(np.array(pts), self.start_tangent)
         object.__setattr__(self, "_coeffs", coeffs)
 
         # Per-segment cumulative arc-length tables (u-breakpoints, s values).
@@ -267,6 +288,8 @@ class CatmullRomSpline(UnitSpeedCurve):
         return tuple(out)
 
     def canonical(self) -> tuple:
+        if self.start_tangent is not None:
+            return ("catmull-rom-clamped", self.points, self.start_tangent)
         return ("catmull-rom", self.points)
 
 
@@ -275,12 +298,15 @@ class CatmullRomSpline(UnitSpeedCurve):
 # ---------------------------------------------------------------------------
 
 
-def _segment_coefficients(pts: np.ndarray) -> np.ndarray:
+def _segment_coefficients(
+    pts: np.ndarray, start_tangent: tuple[float, float] | None = None
+) -> np.ndarray:
     """Exact cubic coefficients of every centripetal Catmull-Rom span.
 
     Returns an (n_segments, 2, 4) array: coeffs[k, 0] are the x-polynomial
     coefficients (constant first) in the local parameter u in [0, 1] of
-    span k, coeffs[k, 1] the y coefficients.
+    span k, coeffs[k, 1] the y coefficients. With ``start_tangent`` set,
+    span 0 is replaced by the clamped Hermite span (see CatmullRomSpline).
     """
     n = pts.shape[0]
     # Reflected phantom endpoints
@@ -303,7 +329,44 @@ def _segment_coefficients(pts: np.ndarray) -> np.ndarray:
         ])  # (4, 2)
         coeffs[k, 0] = V_inv @ samples[:, 0]
         coeffs[k, 1] = V_inv @ samples[:, 1]
+
+    if start_tangent is not None:
+        coeffs[0] = _clamped_first_span(pts, coeffs, start_tangent)
     return coeffs
+
+
+def _clamped_first_span(
+    pts: np.ndarray, coeffs: np.ndarray, start_tangent: tuple[float, float]
+) -> np.ndarray:
+    """Hermite replacement for span 0 with a clamped start tangent.
+
+    Start derivative: the unit tangent scaled by the first chord length.
+    End derivative: the second span's start derivative rescaled to span 0's
+    knot interval (C1 continuity in the knot parameterization) - or, for a
+    single-span spline, the natural end condition p''(1) = 0.
+    """
+    p0, p1 = pts[0], pts[1]
+    c = p1 - p0
+    chord = float(np.hypot(c[0], c[1]))
+    m0 = np.array([start_tangent[0] * chord, start_tangent[1] * chord])
+
+    if pts.shape[0] > 2:
+        # Next span's derivative at its local u = 0 is its linear coefficient
+        m_next = np.array([coeffs[1, 0, 1], coeffs[1, 1, 1]])
+        # Centripetal knot intervals of the two spans
+        dt0 = math.sqrt(chord)
+        dt1 = math.sqrt(float(np.hypot(pts[2][0] - p1[0], pts[2][1] - p1[1])))
+        m1 = m_next * (dt0 / dt1)
+    else:
+        m1 = (3.0 * c - m0) / 2.0  # natural end: p''(1) = 0
+
+    out = np.empty((2, 4))
+    for axis in range(2):
+        out[axis, 0] = p0[axis]
+        out[axis, 1] = m0[axis]
+        out[axis, 2] = 3.0 * c[axis] - 2.0 * m0[axis] - m1[axis]
+        out[axis, 3] = -2.0 * c[axis] + m0[axis] + m1[axis]
+    return out
 
 
 def _barry_goldman(P: np.ndarray, tau: np.ndarray, t: float) -> np.ndarray:

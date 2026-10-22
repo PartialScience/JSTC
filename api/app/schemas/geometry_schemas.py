@@ -77,7 +77,73 @@ class SplinePathSchema(BaseModel):
     )
 
 
-PathSchema = Annotated[
+# The non-piecewise path kinds - also the only kinds allowed as the FIRST
+# segment of a piecewise path (nesting is forbidden by construction).
+SimplePathSchema = Annotated[
     Union[LinePathSchema, ArcPathSchema, SplinePathSchema],
+    Field(discriminator="kind"),
+]
+
+
+# ---------------------------------------------------------------------------
+# Piecewise continuations: each carries ONLY its free parameters - the start
+# point and start tangent are inherited from the previous segment, so
+# tangent continuity holds by construction (see geometry/curves/continuations).
+# ---------------------------------------------------------------------------
+
+class LineFromSchema(BaseModel):
+    """A straight segment continuing along the inherited tangent."""
+    kind: Literal["line-from"] = "line-from"
+    length: float = Field(..., gt=0, description="Segment length (the only free DOF)")
+
+
+class ArcFromSchema(BaseModel):
+    """An arc tangent to the inherited direction, ending at ``end``.
+
+    The endpoint is the only free input; the tangent circle through it is
+    unique (closed form), with sweeps beyond a semicircle included. An
+    endpoint on the tangent line is rejected (straight ahead: use
+    line-from; behind: no tangent circle exists).
+    """
+    kind: Literal["arc-from"] = "arc-from"
+    end: Tuple[float, float] = Field(..., description="Arc endpoint (r, z)")
+
+
+class SplineFromSchema(BaseModel):
+    """A Catmull-Rom segment with its start tangent clamped to the
+    inherited direction, interpolating the given points."""
+    kind: Literal["spline-from"] = "spline-from"
+    points: List[Tuple[float, float]] = Field(
+        ..., min_length=1, description="Interpolation points (r, z), in order"
+    )
+
+
+ContinuationSchema = Annotated[
+    Union[LineFromSchema, ArcFromSchema, SplineFromSchema],
+    Field(discriminator="kind"),
+]
+
+
+class PiecewisePathSchema(BaseModel):
+    """A tangent-continuous chain: a full first segment plus continuations
+    that each inherit their start point and tangent from the previous one.
+
+    The reduced continuation forms make a kinked chain unrepresentable -
+    continuity is a property of the schema, not a validation afterthought.
+    """
+    kind: Literal["piecewise"] = "piecewise"
+    first: SimplePathSchema = Field(..., description="The first segment (full description)")
+    rest: List[ContinuationSchema] = Field(
+        ...,
+        min_length=1,
+        # 20 segments total is far beyond any physical winding; the cap keeps
+        # pairwise validation work (tube self-approach) bounded.
+        max_length=19,
+        description="Continuation segments, each built from the previous end",
+    )
+
+
+PathSchema = Annotated[
+    Union[LinePathSchema, ArcPathSchema, SplinePathSchema, PiecewisePathSchema],
     Field(discriminator="kind"),
 ]

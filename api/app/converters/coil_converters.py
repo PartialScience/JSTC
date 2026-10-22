@@ -2,11 +2,15 @@
 Converters from coil schemas to domain models.
 """
 from app.geometry import (
+    ArcContinuation,
+    C1PiecewiseCurve,
     CatmullRomSpline,
     CircularArc,
     CircularCrossSection,
+    LineContinuation,
     LineSegment,
     RectangularCrossSection,
+    SplineContinuation,
     UnitSpeedCurve,
 )
 from app.models.coil_models import (
@@ -29,8 +33,12 @@ from app.schemas.component_schemas import (
     UniformTurnProfileSchema,
 )
 from app.schemas.geometry_schemas import (
+    ArcFromSchema,
     ArcPathSchema,
+    LineFromSchema,
     LinePathSchema,
+    PiecewisePathSchema,
+    SplineFromSchema,
     SplinePathSchema,
 )
 from .geometry_converters import geometry_from_schema
@@ -51,6 +59,16 @@ def turn_distribution_from_schema(schema):
     raise ValueError(f"Unknown turn profile schema: {type(schema).__name__}")
 
 
+def continuation_from_schema(schema):
+    if isinstance(schema, LineFromSchema):
+        return LineContinuation(length=schema.length)
+    if isinstance(schema, ArcFromSchema):
+        return ArcContinuation(end=tuple(schema.end))
+    if isinstance(schema, SplineFromSchema):
+        return SplineContinuation(points=tuple(tuple(p) for p in schema.points))
+    raise ValueError(f"Unknown continuation schema: {type(schema).__name__}")
+
+
 def path_from_schema(schema) -> UnitSpeedCurve:
     """Build the unit-speed winding centerline a path schema describes."""
     if isinstance(schema, LinePathSchema):
@@ -61,6 +79,11 @@ def path_from_schema(schema) -> UnitSpeedCurve:
         )
     if isinstance(schema, SplinePathSchema):
         return CatmullRomSpline(points=tuple(tuple(p) for p in schema.points))
+    if isinstance(schema, PiecewisePathSchema):
+        return C1PiecewiseCurve.from_continuations(
+            path_from_schema(schema.first),
+            [continuation_from_schema(c) for c in schema.rest],
+        )
     raise ValueError(f"Unknown path schema: {type(schema).__name__}")
 
 

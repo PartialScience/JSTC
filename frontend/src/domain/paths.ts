@@ -15,7 +15,10 @@
  * Turn profiles mirror api/app/models/turn_profiles: cumulative turns over
  * arc length with exact closed-form inverses.
  */
-import type { PathSchema, TurnProfileSchema } from '../api/client';
+import type { ContinuationSchema, PathSchema, PiecewisePathSchema, TurnProfileSchema } from '../api/client';
+
+type PiecewisePath = PiecewisePathSchema;
+type Continuation = ContinuationSchema;
 import type { Point } from './coil';
 
 // ---------------------------------------------------------------------------
@@ -72,10 +75,117 @@ export function evaluatePath(path: PathSchema): EvaluatedPath {
       return evalArc(path.start as Point, path.mid as Point, path.end as Point);
     case 'spline':
       return evalSpline(path.points as Point[]);
+    case 'piecewise':
+      return evalPiecewise(path);
   }
 }
 
+/** The evaluated pieces of a piecewise path, built by propagation (each
+ *  continuation inherits the previous piece's end point and tangent) — the
+ *  mirror of C1PiecewiseCurve.from_continuations. */
+function piecewisePieces(path: PiecewisePath): EvaluatedPath[] {
+  const pieces: EvaluatedPath[] = [evaluatePath(path.first)];
+  for (const cont of path.rest) {
+    const prev = pieces[pieces.length - 1]!;
+    pieces.push(buildContinuation(cont, prev.pointAt(prev.length), prev.tangentAt(prev.length)));
+  }
+  return pieces;
+}
+
+function buildContinuation(cont: Continuation, point: Point, tangent: Point): EvaluatedPath {
+  switch (cont.kind) {
+    case 'line-from':
+      return evalLine(point, [
+        point[0] + tangent[0] * cont.length,
+        point[1] + tangent[1] * cont.length,
+      ]);
+    case 'arc-from':
+      return evalArcGeometry(arcFromTangent(point, tangent, cont.end as Point));
+    case 'spline-from':
+      return evalSpline([point, ...(cont.points as Point[])], tangent);
+  }
+}
+
+function evalPiecewise(path: PiecewisePath): EvaluatedPath {
+  const pieces = piecewisePieces(path);
+  const s0 = [0];
+  for (const p of pieces) s0.push(s0[s0.length - 1]! + p.length);
+  const length = s0[pieces.length]!;
+
+  const locate = (s: number): { k: number; local: number } => {
+    const sc = Math.min(Math.max(s, 0), length);
+    let k = pieces.length - 1;
+    for (let i = 0; i < pieces.length; i++) {
+      if (sc <= s0[i + 1]!) {
+        k = i;
+        break;
+      }
+    }
+    return { k, local: sc - s0[k]! };
+  };
+
+  return {
+    length,
+    pointAt: (s) => {
+      const { k, local } = locate(s);
+      return pieces[k]!.pointAt(local);
+    },
+    tangentAt: (s) => {
+      const { k, local } = locate(s);
+      return pieces[k]!.tangentAt(local);
+    },
+    curvatureAt: (s) => {
+      const { k, local } = locate(s);
+      return pieces[k]!.curvatureAt(local);
+    },
+    sampleParams: (tol) => {
+      const out: number[] = [0];
+      pieces.forEach((p, k) => {
+        for (const local of p.sampleParams(tol).slice(1)) out.push(s0[k]! + local);
+      });
+      return out;
+    },
+  };
+}
+
 /** The path's defining points, in order — what canvas handles attach to. */
+/** Where a flat control-point index lands inside a piecewise path. */
+interface PiecewisePointRef {
+  /** -1 = the first segment, else index into rest. */
+  seg: number;
+  /** Index within that segment's own control points. */
+  local: number;
+}
+
+/** The flat list of a piecewise path's ABSOLUTE control points: the first
+ *  segment's points, then each continuation's stored points (arc-from's
+ *  endpoint, spline-from's interpolation points). line-from stores only a
+ *  length, so it contributes nothing here — its endpoint is derived and
+ *  handled separately in the editor. Being storage-backed, these positions
+ *  render (and stay draggable) even while an upstream segment is
+ *  transiently degenerate. */
+function piecewiseControlRefs(path: PiecewisePath): PiecewisePointRef[] {
+  const refs: PiecewisePointRef[] = pathControlPoints(path.first).map((_, local) => ({
+    seg: -1,
+    local,
+  }));
+  path.rest.forEach((cont, seg) => {
+    if (cont.kind === 'arc-from') refs.push({ seg, local: 0 });
+    else if (cont.kind === 'spline-from') {
+      (cont.points as Point[]).forEach((_, local) => refs.push({ seg, local }));
+    }
+  });
+  return refs;
+}
+
+function piecewisePointAt(path: PiecewisePath, ref: PiecewisePointRef): Point {
+  if (ref.seg === -1) return pathControlPoints(path.first)[ref.local]!;
+  const cont = path.rest[ref.seg]!;
+  if (cont.kind === 'arc-from') return cont.end as Point;
+  if (cont.kind === 'spline-from') return (cont.points as Point[])[ref.local]!;
+  throw new Error('line-from has no stored control points');
+}
+
 export function pathControlPoints(path: PathSchema): Point[] {
   switch (path.kind) {
     case 'line':
@@ -84,6 +194,8 @@ export function pathControlPoints(path: PathSchema): Point[] {
       return [path.start as Point, path.mid as Point, path.end as Point];
     case 'spline':
       return (path.points as Point[]).map((p) => [p[0], p[1]]);
+    case 'piecewise':
+      return piecewiseControlRefs(path).map((ref) => piecewisePointAt(path, ref));
   }
 }
 
@@ -101,6 +213,22 @@ export function withControlPoint(path: PathSchema, index: number, p: Point): Pat
     case 'spline': {
       const points = (path.points as Point[]).map((q, i) => (i === index ? p : q));
       return { ...path, points };
+    }
+    case 'piecewise': {
+      const ref = piecewiseControlRefs(path)[index];
+      if (!ref) return path;
+      if (ref.seg === -1) {
+        return { ...path, first: withControlPoint(path.first, ref.local, p) as PiecewisePath['first'] };
+      }
+      const rest = path.rest.map((cont, i) => {
+        if (i !== ref.seg) return cont;
+        if (cont.kind === 'arc-from') return { ...cont, end: p };
+        if (cont.kind === 'spline-from') {
+          return { ...cont, points: (cont.points as Point[]).map((q, j) => (j === ref.local ? p : q)) };
+        }
+        return cont;
+      });
+      return { ...path, rest };
     }
   }
 }
@@ -120,6 +248,18 @@ export function translatePath(path: PathSchema, dr: number, dz: number): PathSch
       };
     case 'spline':
       return { ...path, points: (path.points as Point[]).map(move) };
+    case 'piecewise':
+      return {
+        ...path,
+        first: translatePath(path.first, dr, dz) as PiecewisePath['first'],
+        rest: path.rest.map((cont) => {
+          if (cont.kind === 'arc-from') return { ...cont, end: move(cont.end as Point) };
+          if (cont.kind === 'spline-from') {
+            return { ...cont, points: (cont.points as Point[]).map(move) };
+          }
+          return cont; // line-from: a pure length, translation-invariant
+        }),
+      };
   }
 }
 
@@ -132,14 +272,20 @@ export function translatePath(path: PathSchema, dr: number, dz: number): PathSch
  * until the user drags the points apart.
  */
 export function normalizePath(path: PathSchema): PathSchema {
+  if (path.kind === 'piecewise') {
+    const first = normalizePath(path.first) as PiecewisePath['first'];
+    const rest = path.rest.map((cont) =>
+      cont.kind === 'spline-from'
+        ? { ...cont, points: dedupeConsecutive(cont.points as Point[]) }
+        : cont,
+    );
+    const changed =
+      first !== path.first || rest.some((c, i) => c !== path.rest[i]);
+    return changed ? { ...path, first, rest } : path;
+  }
   if (path.kind === 'spline') {
-    const pts = path.points as Point[];
-    const dedup: Point[] = [];
-    for (const p of pts) {
-      const last = dedup[dedup.length - 1];
-      if (!last || last[0] !== p[0] || last[1] !== p[1]) dedup.push(p);
-    }
-    if (dedup.length >= 2 && dedup.length !== pts.length) {
+    const dedup = dedupeConsecutive(path.points as Point[]);
+    if (dedup !== path.points && dedup.length >= 2) {
       return { ...path, points: dedup };
     }
     return path;
@@ -147,10 +293,48 @@ export function normalizePath(path: PathSchema): PathSchema {
   return path;
 }
 
-/** The path's start/end points without full evaluation. */
+/** Drop consecutive duplicates; returns the input array when unchanged. */
+function dedupeConsecutive(pts: Point[]): Point[] {
+  const out: Point[] = [];
+  for (const p of pts) {
+    const last = out[out.length - 1];
+    if (!last || last[0] !== p[0] || last[1] !== p[1]) out.push(p);
+  }
+  return out.length === pts.length ? pts : out;
+}
+
+/** The path's start/end points. A piecewise chain ending in a line-from
+ *  needs evaluation for its true endpoint (the stored points stop at the
+ *  last absolute coordinate); evaluation failures fall back to the last
+ *  stored point so callers never throw on transiently-degenerate paths. */
 export function pathEndpoints(path: PathSchema): { start: Point; end: Point } {
   const pts = pathControlPoints(path);
+  if (path.kind === 'piecewise' && path.rest[path.rest.length - 1]!.kind === 'line-from') {
+    try {
+      const p = evaluatePath(path);
+      return { start: pts[0]!, end: p.pointAt(p.length) };
+    } catch {
+      /* fall through to the stored points */
+    }
+  }
   return { start: pts[0]!, end: pts[pts.length - 1]! };
+}
+
+/** Junction state (point + unit tangent) entering continuation ``seg`` of a
+ *  piecewise path — i.e. the end of the previous segment. Used by the
+ *  editor for read-only display, kind conversions, and the line-from
+ *  endpoint handle. Returns null while an upstream segment is degenerate. */
+export function junctionBefore(
+  path: PiecewisePathSchema,
+  seg: number,
+): { point: Point; tangent: Point } | null {
+  try {
+    const pieces = piecewisePieces({ ...path, rest: path.rest.slice(0, seg) });
+    const prev = pieces[pieces.length - 1]!;
+    return { point: prev.pointAt(prev.length), tangent: prev.tangentAt(prev.length) };
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -246,8 +430,41 @@ export function arcMidFromRadiusForm(start: Point, end: Point, radius: number): 
   return [center[0] + r * Math.cos(aMid), center[1] + r * Math.sin(aMid)];
 }
 
+/** The tangent arc: center on the normal line at the junction, reaching
+ *  the endpoint — mirror of ArcContinuation.build (linear, closed form). */
+export function arcFromTangent(point: Point, tangent: Point, end: Point): ArcGeometry {
+  const [px, pz] = point;
+  const [tx, tz] = tangent;
+  const dx = end[0] - px;
+  const dz = end[1] - pz;
+  const chord = Math.hypot(dx, dz);
+  if (chord === 0) throw new Error('arc-from endpoint must differ from the junction point');
+  const nx = -tz;
+  const nz = tx;
+  const denom = 2 * (nx * dx + nz * dz);
+  if (Math.abs(denom) <= 1e-12 * chord) {
+    throw new Error(
+      tx * dx + tz * dz > 0
+        ? 'arc-from endpoint lies straight ahead; use line-from'
+        : 'arc-from endpoint lies behind the junction on the tangent line',
+    );
+  }
+  const s = (chord * chord) / denom;
+  const center: Point = [px + s * nx, pz + s * nz];
+  const radius = Math.abs(s);
+  const aStart = Math.atan2(pz - center[1], px - center[0]);
+  const aEnd = Math.atan2(end[1] - center[1], end[0] - center[0]);
+  const twoPi = 2 * Math.PI;
+  const mod = (v: number) => ((v % twoPi) + twoPi) % twoPi;
+  const angleEnd = s > 0 ? aStart + mod(aEnd - aStart) : aStart - mod(aStart - aEnd);
+  return { center, radius, angleStart: aStart, angleEnd };
+}
+
 function evalArc(start: Point, mid: Point, end: Point): EvaluatedPath {
-  const { center, radius, angleStart, angleEnd } = arcFromThreePoints(start, mid, end);
+  return evalArcGeometry(arcFromThreePoints(start, mid, end));
+}
+
+function evalArcGeometry({ center, radius, angleStart, angleEnd }: ArcGeometry): EvaluatedPath {
   const dir = angleEnd > angleStart ? 1 : -1;
   const length = radius * Math.abs(angleEnd - angleStart);
   const angleAt = (s: number) => angleStart + (dir * s) / radius;
@@ -269,6 +486,10 @@ function evalArc(start: Point, mid: Point, end: Point): EvaluatedPath {
       const n = Math.max(1, Math.ceil(length / maxStep));
       const out: number[] = [];
       for (let i = 0; i <= n; i++) out.push((length * i) / n);
+      // (length * i) / n can drift a ulp off length at i == n; samples must
+      // span the domain exactly.
+      out[0] = 0;
+      out[n] = length;
       return out;
     },
   };
@@ -290,7 +511,32 @@ const V_INV = [
   [-4.5, 13.5, -13.5, 4.5],
 ];
 
-function splineSpans(points: Point[]): SpanCoeffs[] {
+/** Hermite replacement for span 0 with a clamped start tangent — mirror
+ *  of the backend's _clamped_first_span (same magnitude and end-derivative
+ *  conventions, pinned by the golden fixture). */
+function clampedFirstSpan(points: Point[], spans: SpanCoeffs[], tangent: Point): SpanCoeffs {
+  const p0 = points[0]!;
+  const p1 = points[1]!;
+  const c: Point = [p1[0] - p0[0], p1[1] - p0[1]];
+  const chord = Math.hypot(c[0], c[1]);
+  const m0: Point = [tangent[0] * chord, tangent[1] * chord];
+
+  let m1: Point;
+  if (points.length > 2) {
+    const next = spans[1]!;
+    const dt0 = Math.sqrt(chord);
+    const dt1 = Math.sqrt(Math.hypot(points[2]![0] - p1[0], points[2]![1] - p1[1]));
+    m1 = [(next.x[1]! * dt0) / dt1, (next.z[1]! * dt0) / dt1];
+  } else {
+    m1 = [(3 * c[0] - m0[0]) / 2, (3 * c[1] - m0[1]) / 2]; // natural end: p''(1) = 0
+  }
+  return {
+    x: [p0[0], m0[0], 3 * c[0] - 2 * m0[0] - m1[0], -2 * c[0] + m0[0] + m1[0]],
+    z: [p0[1], m0[1], 3 * c[1] - 2 * m0[1] - m1[1], -2 * c[1] + m0[1] + m1[1]],
+  };
+}
+
+function splineSpans(points: Point[], startTangent?: Point): SpanCoeffs[] {
   if (points.length < 2) throw new Error('Spline needs at least 2 points');
   for (let i = 1; i < points.length; i++) {
     if (points[i]![0] === points[i - 1]![0] && points[i]![1] === points[i - 1]![1]) {
@@ -327,6 +573,9 @@ function splineSpans(points: Point[]): SpanCoeffs[] {
       }
     }
     spans.push({ x: cx, z: cz });
+  }
+  if (startTangent) {
+    spans[0] = clampedFirstSpan(points, spans, startTangent);
   }
   return spans;
 }
@@ -389,8 +638,8 @@ function buildTable(c: SpanCoeffs): SpanTable {
   return { uEdges, sCum };
 }
 
-function evalSpline(points: Point[]): EvaluatedPath {
-  const spans = splineSpans(points);
+function evalSpline(points: Point[], startTangent?: Point): EvaluatedPath {
+  const spans = splineSpans(points, startTangent);
   const tables = spans.map(buildTable);
   const spanS0 = [0];
   for (let k = 0; k < spans.length; k++) {

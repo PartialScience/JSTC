@@ -114,3 +114,83 @@ def test_self_approaching_spline_rejected():
     req.coil.secondary.wire_dia = 0.4
     with pytest.raises(ValueError, match="approaches itself"):
         coil_from_schema(req.coil)
+
+
+def test_piecewise_primary_converts_and_solves():
+    """Line-into-arc QCW-style primary through the full API path."""
+    from app.geometry import C1PiecewiseCurve
+
+    req = MatricesRequest.model_validate(_payload(
+        {"kind": "line", "start": [2.0, 20.0], "end": [2.0, 40.0]},
+        primary_path={
+            "kind": "piecewise",
+            "first": {"kind": "line", "start": [4.0, 20.0], "end": [4.0, 23.0]},
+            "rest": [
+                {"kind": "arc-from", "end": [7.0, 26.0]},
+                {"kind": "line-from", "length": 1.5},
+                {"kind": "spline-from", "points": [[10.0, 27.0]]},
+            ],
+        },
+    ))
+    coil = coil_from_schema(req.coil)
+    chain = coil.primary.curve
+    assert isinstance(chain, C1PiecewiseCurve)
+    assert len(chain.pieces) == 4
+    assert chain.point_at(0.0) == pytest.approx((4.0, 20.0))
+    assert len(coil.primary.ring_centers()) == 9
+
+
+def test_piecewise_secondary_with_graded_turns():
+    req = MatricesRequest.model_validate(_payload(
+        {
+            "kind": "piecewise",
+            "first": {"kind": "line", "start": [2.0, 10.0], "end": [2.0, 25.0]},
+            "rest": [{"kind": "arc-from", "end": [5.0, 28.0]}],
+        },
+        secondary_turns={"kind": "graded", "points": [[0.0, 0.0], [0.6, 80.0], [1.0, 100.0]]},
+    ))
+    coil = coil_from_schema(req.coil)
+    L = coil.secondary.curve.length
+    assert coil.secondary.turn_fxn(0.6 * L) == pytest.approx(80.0)
+
+
+def test_piecewise_rejects_degenerate_continuation():
+    req = MatricesRequest.model_validate(_payload(
+        {"kind": "line", "start": [2.0, 20.0], "end": [2.0, 40.0]},
+        primary_path={
+            "kind": "piecewise",
+            "first": {"kind": "line", "start": [4.0, 20.0], "end": [4.0, 23.0]},
+            "rest": [{"kind": "arc-from", "end": [4.0, 30.0]}],  # straight ahead
+        },
+    ))
+    with pytest.raises(ValueError, match="line-from"):
+        coil_from_schema(req.coil)
+
+
+def test_piecewise_nesting_unrepresentable():
+    """The schema forbids piecewise-in-piecewise by type."""
+    with pytest.raises(ValidationError):
+        MatricesRequest.model_validate(_payload(
+            {"kind": "line", "start": [2.0, 20.0], "end": [2.0, 40.0]},
+            primary_path={
+                "kind": "piecewise",
+                "first": {
+                    "kind": "piecewise",
+                    "first": {"kind": "line", "start": [4.0, 20.0], "end": [4.0, 23.0]},
+                    "rest": [{"kind": "line-from", "length": 1.0}],
+                },
+                "rest": [{"kind": "line-from", "length": 1.0}],
+            },
+        ))
+
+
+def test_piecewise_segment_cap():
+    with pytest.raises(ValidationError):
+        MatricesRequest.model_validate(_payload(
+            {"kind": "line", "start": [2.0, 20.0], "end": [2.0, 40.0]},
+            primary_path={
+                "kind": "piecewise",
+                "first": {"kind": "line", "start": [4.0, 20.0], "end": [4.0, 23.0]},
+                "rest": [{"kind": "line-from", "length": 0.5}] * 25,
+            },
+        ))

@@ -343,6 +343,36 @@
         "title": "AnalyzeRequest",
         "description": "Request a full analysis, reusing a precomputed matrix bundle.\n\nThe bundle must match the coil's geometry (its geometry_fingerprint is\nvalidated); a mismatch returns 409. Omit the bundle to have the server\ncompute it inline (equivalent to calling the matrices endpoint first,\nbut without returning the bundle to the client)."
       },
+      "ArcFromSchema": {
+        "properties": {
+          "kind": {
+            "const": "arc-from",
+            "title": "Kind",
+            "default": "arc-from"
+          },
+          "end": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "End",
+            "description": "Arc endpoint (r, z)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "end"
+        ],
+        "title": "ArcFromSchema",
+        "description": "An arc tangent to the inherited direction, ending at ``end``.\n\nThe endpoint is the only free input; the tangent circle through it is\nunique (closed form), with sweeps beyond a semicircle included. An\nendpoint on the tangent line is rejected (straight ahead: use\nline-from; behind: no tangent circle exists)."
+      },
       "ArcPathSchema": {
         "properties": {
           "kind": {
@@ -1001,6 +1031,27 @@
         ],
         "title": "ImpedanceResponse"
       },
+      "LineFromSchema": {
+        "properties": {
+          "kind": {
+            "const": "line-from",
+            "title": "Kind",
+            "default": "line-from"
+          },
+          "length": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Length",
+            "description": "Segment length (the only free DOF)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "length"
+        ],
+        "title": "LineFromSchema",
+        "description": "A straight segment continuing along the inherited tangent."
+      },
       "LinePathSchema": {
         "properties": {
           "kind": {
@@ -1131,6 +1182,73 @@
         ],
         "title": "MatrixBundleSchema",
         "description": "Geometry-only matrices (geometric units) plus their provenance.\n\nTreat this as an opaque token on the client: obtain it from the\nmatrices endpoint, cache it, and send it back to the analyze endpoint.\nThe geometry_fingerprint guards against applying it to a coil whose\ngeometry has changed."
+      },
+      "PiecewisePathSchema": {
+        "properties": {
+          "kind": {
+            "const": "piecewise",
+            "title": "Kind",
+            "default": "piecewise"
+          },
+          "first": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LinePathSchema"
+              },
+              {
+                "$ref": "#/components/schemas/ArcPathSchema"
+              },
+              {
+                "$ref": "#/components/schemas/SplinePathSchema"
+              }
+            ],
+            "title": "First",
+            "description": "The first segment (full description)",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "arc": "#/components/schemas/ArcPathSchema",
+                "line": "#/components/schemas/LinePathSchema",
+                "spline": "#/components/schemas/SplinePathSchema"
+              }
+            }
+          },
+          "rest": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/LineFromSchema"
+                },
+                {
+                  "$ref": "#/components/schemas/ArcFromSchema"
+                },
+                {
+                  "$ref": "#/components/schemas/SplineFromSchema"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "kind",
+                "mapping": {
+                  "arc-from": "#/components/schemas/ArcFromSchema",
+                  "line-from": "#/components/schemas/LineFromSchema",
+                  "spline-from": "#/components/schemas/SplineFromSchema"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 19,
+            "minItems": 1,
+            "title": "Rest",
+            "description": "Continuation segments, each built from the previous end"
+          }
+        },
+        "type": "object",
+        "required": [
+          "first",
+          "rest"
+        ],
+        "title": "PiecewisePathSchema",
+        "description": "A tangent-continuous chain: a full first segment plus continuations\nthat each inherit their start point and tangent from the previous one.\n\nThe reduced continuation forms make a kinked chain unrepresentable -\ncontinuity is a property of the schema, not a validation afterthought."
       },
       "PolygonSchema": {
         "properties": {
@@ -1275,6 +1393,9 @@
               },
               {
                 "$ref": "#/components/schemas/SplinePathSchema"
+              },
+              {
+                "$ref": "#/components/schemas/PiecewisePathSchema"
               }
             ],
             "title": "Path",
@@ -1284,6 +1405,7 @@
               "mapping": {
                 "arc": "#/components/schemas/ArcPathSchema",
                 "line": "#/components/schemas/LinePathSchema",
+                "piecewise": "#/components/schemas/PiecewisePathSchema",
                 "spline": "#/components/schemas/SplinePathSchema"
               }
             }
@@ -1421,6 +1543,9 @@
               },
               {
                 "$ref": "#/components/schemas/SplinePathSchema"
+              },
+              {
+                "$ref": "#/components/schemas/PiecewisePathSchema"
               }
             ],
             "title": "Path",
@@ -1430,6 +1555,7 @@
               "mapping": {
                 "arc": "#/components/schemas/ArcPathSchema",
                 "line": "#/components/schemas/LinePathSchema",
+                "piecewise": "#/components/schemas/PiecewisePathSchema",
                 "spline": "#/components/schemas/SplinePathSchema"
               }
             }
@@ -1715,6 +1841,40 @@
           "bundle"
         ],
         "title": "SpiceResponse"
+      },
+      "SplineFromSchema": {
+        "properties": {
+          "kind": {
+            "const": "spline-from",
+            "title": "Kind",
+            "default": "spline-from"
+          },
+          "points": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Points",
+            "description": "Interpolation points (r, z), in order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "points"
+        ],
+        "title": "SplineFromSchema",
+        "description": "A Catmull-Rom segment with its start tangent clamped to the\ninherited direction, interpolating the given points."
       },
       "SplinePathSchema": {
         "properties": {
