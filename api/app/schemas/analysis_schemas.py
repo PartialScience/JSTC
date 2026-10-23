@@ -195,6 +195,52 @@ class ImpedanceResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Operating point (driven response)
+# ---------------------------------------------------------------------------
+
+class DriveRequest(BaseModel):
+    """The steady-state operating mode at a drive frequency and primary
+    current - the same phasor solve that seeds the field visualization.
+
+    Reuses a matrix bundle (fast: pure linear algebra, no FEM). Requires a
+    primary with a tank capacitance.
+    """
+    coil: SimulatableTeslaCoilSchema
+    bundle: Optional[MatrixBundleSchema] = None
+    frequency_hz: float = Field(..., gt=0, description="Sinusoidal drive frequency")
+    primary_current: float = Field(
+        1.0, gt=0,
+        description="Primary current magnitude [A]; its phase is the reference",
+    )
+
+
+class DriveResponse(BaseModel):
+    """Complex operating-mode profiles along the secondary winding.
+
+    All phasors are referenced to the primary current (zero phase). Voltage
+    nodes include the grounded base (0 V at arc length 0), so
+    ``voltage_positions`` has one more entry than ``current_positions`` -
+    the same convention as the eigenmode outputs. Positions are arc length
+    in meters along the winding centerline.
+    """
+    frequency_hz: float
+    primary_current: float = Field(..., description="The drive magnitude [A] (phase reference)")
+    primary_voltage_real: float = Field(..., description="Re(V_p), the primary EMF [V]")
+    primary_voltage_imag: float = Field(..., description="Im(V_p) [V]")
+    voltage_positions: List[float] = Field(
+        ..., description="Arc length (m) of each voltage node, grounded base first"
+    )
+    voltage_real: List[float] = Field(..., description="Re(V) per node [V]")
+    voltage_imag: List[float] = Field(..., description="Im(V) per node [V]")
+    current_positions: List[float] = Field(
+        ..., description="Arc length (m) of each current segment midpoint"
+    )
+    current_real: List[float] = Field(..., description="Re(I) per segment [A]")
+    current_imag: List[float] = Field(..., description="Im(I) per segment [A]")
+    bundle: MatrixBundleSchema
+
+
+# ---------------------------------------------------------------------------
 # SPICE export
 # ---------------------------------------------------------------------------
 

@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { api } from './client';
 import type {
+  DriveResponse,
   AnalysisResponse,
   CoilSchema,
   FieldResponse,
@@ -169,6 +170,41 @@ export function useImpedance(
       });
       if (error || !data)
         throw new ApiError(`impedance request failed (HTTP ${response.status})`, response.status);
+      return data;
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+/** The operating mode (driven phasor response) at a frequency, reusing the
+ *  analysis bundle. Always solves at 1 A: the system is linear in the drive
+ *  current, so callers scale client-side and a current change never refetches
+ *  (only the frequency is in the query key). */
+export function useDrive(
+  coil: CoilSchema,
+  bundle: MatrixBundle | null | undefined,
+  frequencyHz: number,
+  enabled = true,
+) {
+  const key = useMemo(
+    () => ['drive', bundle?.geometry_fingerprint, frequencyHz],
+    [bundle?.geometry_fingerprint, frequencyHz],
+  );
+  return useQuery<DriveResponse>({
+    queryKey: key,
+    enabled: enabled && !!bundle && frequencyHz > 0,
+    queryFn: async () => {
+      const { data, error, response } = await api.POST('/simulation/drive', {
+        body: {
+          coil,
+          bundle: bundle ?? undefined,
+          frequency_hz: frequencyHz,
+          primary_current: 1.0,
+        },
+      });
+      if (error || !data)
+        throw new ApiError(`drive request failed (HTTP ${response.status})`, response.status);
       return data;
     },
     retry: false,

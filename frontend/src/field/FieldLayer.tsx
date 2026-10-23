@@ -10,14 +10,14 @@ import { Group, Image as KonvaImage, Line } from 'react-konva';
 
 import type { FieldResponse } from '../api/client';
 import type { FieldDisplay } from '../state/store';
-import { rasterize } from './colormap';
+import { compressIntensity, compressSigned, rasterize } from './colormap';
 import {
   bIntensityMap,
   contourSegments,
   eIntensityMap,
   fieldDataFromResponse,
   referencePhase,
-  robustMax,
+  robustPeak,
   sampleArrows,
 } from './fieldMath';
 
@@ -36,7 +36,11 @@ export function FieldLayer({
 }) {
   const f = useMemo(() => fieldDataFromResponse(field), [field]);
 
-  // The scalar we colour by, and its colour-scale max.
+  // The scalar we colour by, and its colour-scale max. The scale is anchored
+  // to a DOMAIN-INVARIANT robust peak (fixed-count outlier clip), then the
+  // ramp is spent logarithmically — physical fields span decades, and this is
+  // what keeps near-coil structure resolved when the domain grows (a
+  // percentile scale collapses as far-field cells flood the distribution).
   const { scalar, vmax, potential } = useMemo(() => {
     if (display.colormap === 'potential') {
       // Signed potential at the display phase (the "peak field" instant, so the
@@ -46,10 +50,10 @@ export function FieldLayer({
       for (let i = 0; i < s.length; i++) s[i] = f.mask[i] ? f.real[i]! * cos - f.imag[i]! * sin : NaN;
       const absVals = new Float64Array(s.length);
       for (let i = 0; i < s.length; i++) absVals[i] = Math.abs(s[i]!);
-      return { scalar: s, vmax: robustMax(absVals), potential: true };
+      return { scalar: compressSigned(s, robustPeak(absVals)), vmax: 1, potential: true };
     }
     const s = field.field_type === 'electric' ? eIntensityMap(f) : bIntensityMap(f);
-    return { scalar: s, vmax: robustMax(s), potential: false };
+    return { scalar: compressIntensity(s, robustPeak(s)), vmax: 1, potential: false };
   }, [f, display.colormap, field.field_type]);
 
   // Rasterize to an offscreen canvas Konva can draw as an image.
@@ -69,7 +73,11 @@ export function FieldLayer({
   const height = br.y - tl.y;
   const axisX = toScreen(0, f.zMax).x;
 
-  // Contours (a handful of iso-levels across the range).
+  // Contours (a handful of iso-levels across the range). The scalars are
+  // already display-compressed, so evenly-spaced levels in [0, vmax] are
+  // GEOMETRIC in the physical field for intensity (one contour per fraction
+  // of a decade) and asinh-spaced for potential — which is exactly the
+  // spacing a decades-spanning field wants.
   const contourPolys = useMemo(() => {
     if (!display.showContours) return [];
     const levels: number[] = [];

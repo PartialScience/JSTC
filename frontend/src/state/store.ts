@@ -77,6 +77,18 @@ export interface FieldDisplay {
   showArrows: boolean;
 }
 
+/** The operating-mode pane's drive inputs - deliberately independent of
+ *  the field view's drive (fieldDrive), per design. */
+export interface OperatingDrive {
+  frequencyHz: number; // 0 = "use the coil's lower split mode"
+  primaryCurrent: number;
+}
+
+export const DEFAULT_OPERATING_DRIVE: OperatingDrive = {
+  frequencyHz: 0,
+  primaryCurrent: 100,
+};
+
 export const DEFAULT_FIELD_DRIVE: FieldDrive = {
   frequencyHz: 0, // 0 = "use the coil's lower split mode" (resolved in the UI)
   primaryCurrent: 100,
@@ -172,9 +184,11 @@ export interface EditorState {
    *  operating field (geometry shown but non-interactive). */
   viewMode: ViewMode;
   fieldDrive: FieldDrive;
+  operatingDrive: OperatingDrive;
   fieldDisplay: FieldDisplay;
   setViewMode: (mode: ViewMode) => void;
   setFieldDrive: (patch: Partial<FieldDrive>) => void;
+  setOperatingDrive: (patch: Partial<OperatingDrive>) => void;
   setFieldDisplay: (patch: Partial<FieldDisplay>) => void;
 
   /** Field probe points (shared by the E and B views; hidden elsewhere). */
@@ -295,6 +309,7 @@ export const useEditorStore = create<EditorState>((set) => {
     coil: defaultCoil(),
     viewMode: 'edit' as ViewMode,
     fieldDrive: { ...DEFAULT_FIELD_DRIVE },
+    operatingDrive: { ...DEFAULT_OPERATING_DRIVE },
     fieldDisplay: { ...DEFAULT_FIELD_DISPLAY },
     selection: [],
     tool: 'pan',
@@ -390,6 +405,8 @@ export const useEditorStore = create<EditorState>((set) => {
       ),
     setFieldDrive: (patch) =>
       set((s) => ({ fieldDrive: { ...s.fieldDrive, ...patch } })),
+    setOperatingDrive: (patch) =>
+      set((s) => ({ operatingDrive: { ...s.operatingDrive, ...patch } })),
     setFieldDisplay: (patch) =>
       set((s) => ({ fieldDisplay: { ...s.fieldDisplay, ...patch } })),
 

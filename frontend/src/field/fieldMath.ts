@@ -179,14 +179,19 @@ export function bIntensityMap(f: FieldData): Float64Array {
   return out;
 }
 
-/** A robust color-scale max: a high percentile of the finite values, so a
- *  single hot cell near a conductor doesn't wash out the whole map. */
-export function robustMax(values: Float64Array, percentile = 0.99): number {
+/** A robust, DOMAIN-INVARIANT color-scale max: the value just below the
+ *  `clipCells` hottest finite cells. Clipping a fixed COUNT of outliers (the
+ *  odd numerically-hot cells hugging conductor surfaces) instead of a fixed
+ *  percentile keeps the scale anchored to the true field peak regardless of
+ *  domain size — a percentile collapses as a growing domain floods the value
+ *  distribution with far-field cells, which is what used to blow the map out
+ *  into one saturated ball when r_max/z_max were enlarged. */
+export function robustPeak(values: Float64Array, clipCells = 8): number {
   const finite: number[] = [];
   for (const v of values) if (Number.isFinite(v)) finite.push(v);
   if (finite.length === 0) return 1;
-  finite.sort((a, b) => a - b);
-  const i = Math.min(finite.length - 1, Math.floor(percentile * finite.length));
+  finite.sort((a, b) => b - a);
+  const i = Math.min(finite.length - 1, clipCells);
   return finite[i]! || 1;
 }
 

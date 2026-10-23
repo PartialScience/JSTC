@@ -131,3 +131,62 @@ def invert_cumulative(
         x_newton = x - err / d if d > 0 else None
         x = x_newton if x_newton is not None and lo < x_newton < hi else 0.5 * (lo + hi)
     return x
+
+
+def invert_cumulative_many(
+    x_breaks: np.ndarray,
+    F_cum: np.ndarray,
+    targets: np.ndarray,
+    f: Callable[[np.ndarray], np.ndarray],
+    tol: float,
+    max_iter: int = 60,
+) -> np.ndarray:
+    """Vectorized ``invert_cumulative``: solve F(x_i) = target_i for every
+    target at once, to the same tolerance and by the same safeguarded-Newton
+    strategy. One call replaces len(targets) scalar solves, turning the
+    per-iteration Gauss-Legendre residual into a single (n x 15) batch
+    evaluation of ``f`` - the difference between milliseconds and seconds
+    when a caller samples a spline densely (e.g. wire-length integration).
+    """
+    targets = np.clip(np.asarray(targets, dtype=float), F_cum[0], F_cum[-1])
+    idx = np.clip(
+        np.searchsorted(F_cum, targets, side="right") - 1, 0, len(x_breaks) - 2
+    )
+    lo = np.asarray(x_breaks, dtype=float)[idx]
+    hi = np.asarray(x_breaks, dtype=float)[idx + 1]
+    F_lo = np.asarray(F_cum, dtype=float)[idx]
+
+    # Initial estimates from linear interpolation inside each bracket panel.
+    span = np.asarray(F_cum, dtype=float)[idx + 1] - F_lo
+    safe_span = np.where(span == 0.0, 1.0, span)
+    x = np.where(span == 0.0, lo, lo + (hi - lo) * (targets - F_lo) / safe_span)
+
+    done = np.zeros(targets.shape, dtype=bool)
+    for _ in range(max_iter):
+        # Residuals via one Gauss-Legendre panel per target from its
+        # bracket's left edge (panels are already converged to the table
+        # tolerance). half == 0 when x == lo, giving F_x == F_lo exactly.
+        half = 0.5 * (x - lo)
+        mid = 0.5 * (x + lo)
+        nodes = mid[:, None] + half[:, None] * _GL_NODES[None, :]
+        F_x = F_lo + half * (f(nodes.reshape(-1)).reshape(nodes.shape) @ _GL_WEIGHTS)
+        err = F_x - targets
+
+        done |= np.abs(err) <= tol
+        if done.all():
+            break
+        live = ~done
+
+        over = live & (err > 0)
+        under = live & (err <= 0)
+        hi = np.where(over, x, hi)
+        F_lo = np.where(under, F_x, F_lo)
+        lo = np.where(under, x, lo)
+
+        d = f(x)
+        safe_d = np.where(d > 0, d, 1.0)
+        newton = x - err / safe_d
+        ok = (d > 0) & (newton > lo) & (newton < hi)
+        step = np.where(ok, newton, 0.5 * (lo + hi))
+        x = np.where(live, step, x)
+    return x

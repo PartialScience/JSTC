@@ -6,8 +6,10 @@ import numpy as np
 
 from app.simulation.coupled import (
     CoupledSystem,
+    DrivenResponse,
     coupled_mode_frequencies,
     export_spice_subcircuit,
+    primary_driven_response,
     primary_input_impedance,
 )
 
@@ -68,6 +70,30 @@ class CoupledView:
         """Separation of the split pair, in Hz."""
         lo, hi = self.split_frequencies
         return hi - lo
+
+    # -- Driven operating point --------------------------------------------------
+
+    def driven_response(
+        self, frequency_hz: float, primary_current: complex = 1.0
+    ) -> DrivenResponse:
+        """The steady-state operating mode for a sinusoidal primary drive:
+        the complex secondary node voltages and segment currents (and the
+        primary EMF), phase-referenced to the primary current.
+
+        This is the same solve that seeds the field visualization (losses
+        included via drive_resistance, distributed by wire length), exposed
+        so the operating-mode pane and the fields can never disagree.
+        """
+        return primary_driven_response(
+            self._system(),
+            frequency_hz,
+            primary_current=primary_current,
+            secondary_resistance=self._sim.secondary.drive_resistance,
+            primary_resistance=self._sim.primary.dc_resistance,
+            secondary_resistance_weights=np.array(
+                self._sim.secondary.segment_wire_length_fractions
+            ),
+        )
 
     # -- Driving-point impedance -----------------------------------------------
 

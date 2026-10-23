@@ -38,6 +38,7 @@ import {
   type QuantityKind,
 } from '../units/units';
 import { EigenModesChart } from './EigenModes';
+import { OperatingModePane } from './OperatingMode';
 import { MatrixViewer } from './MatrixViewer';
 import { eng } from './format';
 
@@ -690,6 +691,20 @@ export function Results({
           <EigenModesChart modes={analysis.modes} />
         ) : (
           <p className="muted">Run the calculation to see the voltage and current eigenmodes.</p>
+        )}
+      </div>
+
+      <div className="result-card">
+        <h3>Operating mode</h3>
+        {analysis && analysis.coupled ? (
+          <OperatingModePane coil={coil} bundle={bundle} />
+        ) : analysis ? (
+          <p className="muted">
+            The operating mode needs a primary with a tank capacitance (it is the
+            driven response of the coupled system).
+          </p>
+        ) : (
+          <p className="muted">Run the calculation to see the driven operating mode.</p>
         )}
       </div>
 

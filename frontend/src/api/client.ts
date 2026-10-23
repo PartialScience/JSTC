@@ -54,6 +54,7 @@ export type PrimaryOutputs = components['schemas']['PrimaryOutputs'];
 export type CouplingOutputs = components['schemas']['CouplingOutputs'];
 export type CoupledOutputs = components['schemas']['CoupledOutputs'];
 export type ImpedanceResponse = components['schemas']['ImpedanceResponse'];
+export type DriveResponse = components['schemas']['DriveResponse'];
 export type ImpedancePoint = components['schemas']['ImpedancePoint'];
 export type SpiceResponse = components['schemas']['SpiceResponse'];
 export type FieldRequest = components['schemas']['FieldRequest'];
