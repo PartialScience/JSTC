@@ -33,6 +33,8 @@ curvature; its left normal points toward the center.
 
 from abc import ABC, abstractmethod
 
+import numpy as np
+
 
 class ParametricCurve(ABC):
     """Abstract base class for parametric curves. See the module docstring
@@ -54,6 +56,18 @@ class ParametricCurve(ABC):
     def point_at(self, t: float) -> tuple[float, float]:
         """The point on the curve at parameter t."""
         ...
+
+    def points_at(self, ts) -> np.ndarray:
+        """The points at every parameter in ``ts``, as an (n, 2) array.
+
+        Semantically identical to mapping ``point_at`` over ``ts`` (the
+        contract tests enforce this); the default does exactly that.
+        Curves whose point_at involves per-call numeric work (the spline's
+        arc-length inversion) override this with a batched solve, which is
+        what makes dense sampling - wire-length integration over hundreds
+        of turns - fast.
+        """
+        return np.array([self.point_at(float(t)) for t in ts], dtype=float).reshape(-1, 2)
 
     @abstractmethod
     def derivative_at(self, t: float) -> tuple[float, float]:

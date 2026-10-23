@@ -28,6 +28,19 @@ class SecondaryView:
 
     def __init__(self, sim: TeslaCoilSimulation):
         self._sim = sim
+        #: name -> (inputs key, value) memo for the wire-length integrals,
+        #: which are the view's only numerically expensive properties. Keyed
+        #: on the exact spec inputs (frozen dataclasses with structural
+        #: equality), so swapping sim.coil invalidates naturally.
+        self._wire_memo: dict = {}
+
+    def _memoized(self, name: str, key, compute):
+        entry = self._wire_memo.get(name)
+        if entry is not None and entry[0] == key:
+            return entry[1]
+        value = compute()
+        self._wire_memo[name] = (key, value)
+        return value
 
     # -- Geometric matrices (solver-native units) -----------------------------
 
@@ -312,12 +325,20 @@ class SecondaryView:
 
         coil = self._sim.coil
         sec = coil.secondary
-        slices = self._sim._discretizer.get_slices(sec, coil.discretization_order)
-        lengths = np.array([
-            helical_wire_length_between(sec.curve, sec.turn_fxn, a, b)
-            for a, b in zip(slices[:-1], slices[1:])
-        ])
-        return tuple(float(v) for v in lengths / lengths.sum())
+
+        def compute() -> Tuple[float, ...]:
+            slices = self._sim._discretizer.get_slices(sec, coil.discretization_order)
+            lengths = np.array([
+                helical_wire_length_between(sec.curve, sec.turn_fxn, a, b)
+                for a, b in zip(slices[:-1], slices[1:])
+            ])
+            return tuple(float(v) for v in lengths / lengths.sum())
+
+        return self._memoized(
+            "segment_wire_length_fractions",
+            (sec, coil.discretization_order),
+            compute,
+        )
 
     @property
     def conductor_length(self) -> float:
@@ -331,8 +352,12 @@ class SecondaryView:
         from app.formulas.geometric import helical_wire_length
 
         coil = self._sim.coil
-        length_geo = helical_wire_length(coil.secondary.curve, coil.secondary.turn_fxn)
-        return length_geo * coil.unit_scale
+        return self._memoized(
+            "conductor_length",
+            (coil.secondary, coil.unit_scale),
+            lambda: helical_wire_length(coil.secondary.curve, coil.secondary.turn_fxn)
+            * coil.unit_scale,
+        )
 
     @property
     def dc_resistance(self) -> float:

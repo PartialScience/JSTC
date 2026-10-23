@@ -6,6 +6,8 @@ from bisect import bisect_right
 from dataclasses import dataclass, field
 from typing import Sequence, Tuple
 
+import numpy as np
+
 from app.geometry.curves.base import UnitSpeedCurve
 from app.geometry.curves.continuations import CurveContinuation
 
@@ -138,6 +140,23 @@ class C1PiecewiseCurve(UnitSpeedCurve):
     def point_at(self, t: float) -> tuple[float, float]:
         k, lt = self._locate(t)
         return self.pieces[k].point_at(lt)
+
+    def points_at(self, ts) -> np.ndarray:
+        """Batched ``point_at``: group the parameters by owning piece and
+        forward each group to that piece's own ``points_at``, so a spline
+        piece keeps its vectorized inversion."""
+        ts = np.clip(np.asarray(ts, dtype=float), 0.0, self._s0[-1])
+        ks = np.clip(
+            np.searchsorted(self._s0, ts, side="right") - 1,
+            0,
+            len(self.pieces) - 1,
+        )
+        out = np.empty((ts.size, 2), dtype=float)
+        for k in np.unique(ks):
+            mask = ks == k
+            piece = self.pieces[k]
+            out[mask] = piece.points_at(piece.t_min + (ts[mask] - self._s0[k]))
+        return out
 
     def derivative_at(self, t: float) -> tuple[float, float]:
         k, lt = self._locate(t)

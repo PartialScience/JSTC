@@ -3,6 +3,8 @@ A wrapper that restricts an existing UnitSpeedCurve to a sub-range [t1, t2].
 """
 from dataclasses import dataclass
 
+import numpy as np
+
 from app.geometry.curves.base import UnitSpeedCurve
 
 
@@ -43,6 +45,11 @@ class SubCurve(UnitSpeedCurve):
 
     def point_at(self, t: float) -> tuple[float, float]:
         return self.parent_curve.point_at(t)
+
+    def points_at(self, ts) -> np.ndarray:
+        """Batched ``point_at``: same parameterization as the parent, so
+        this forwards wholesale and keeps the parent's vectorized path."""
+        return self.parent_curve.points_at(np.clip(np.asarray(ts, dtype=float), self.t1, self.t2))
 
     def derivative_at(self, t: float) -> tuple[float, float]:
         return self.parent_curve.derivative_at(t)

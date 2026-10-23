@@ -85,6 +85,23 @@ class TestParametricCurveProperties:
             f"Inconsistent point dimensions across parameter range: {dims}"
         )
 
+    def test_points_at_matches_point_at(self, curve_instance):
+        """points_at is BY CONTRACT the batched point_at: a dense sweep of
+        the domain must agree with the scalar map to far below geometric
+        tolerance, on every curve (including any vectorized override)."""
+        import numpy as np
+
+        c = curve_instance
+        ts = np.linspace(c.t_min, c.t_max, 257)
+        batched = np.asarray(c.points_at(ts))
+        scalar = np.array([c.point_at(float(t)) for t in ts])
+        assert batched.shape == (len(ts), 2)
+        scale = max(float(np.abs(scalar).max()), 1.0)
+        assert np.max(np.abs(batched - scalar)) <= 1e-9 * scale, (
+            f"points_at deviates from point_at by "
+            f"{np.max(np.abs(batched - scalar)):.3e} on {type(c).__name__}"
+        )
+
     # ------------------------------------------------------------------
     # distance_to_curve == 0 for every point ON the curve
     # ------------------------------------------------------------------

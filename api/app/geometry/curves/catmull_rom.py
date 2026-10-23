@@ -33,6 +33,7 @@ from app.formulas.numerics import (
     adaptive_cumulative_integral,
     gauss_legendre_integral,
     invert_cumulative,
+    invert_cumulative_many,
 )
 from app.geometry.curves.base import UnitSpeedCurve
 
@@ -143,6 +144,32 @@ class CatmullRomSpline(UnitSpeedCurve):
         k, u = self._locate(t)
         x, y = _poly_eval(self._coeffs[k], u)
         return (float(x), float(y))
+
+    def points_at(self, ts) -> np.ndarray:
+        """Batched ``point_at``: one vectorized arc-length inversion per
+        spline segment instead of a scalar Newton solve per parameter.
+        Same bracketing tables and tolerance as ``_locate``, so the results
+        match ``point_at`` to the inversion tolerance (contract-tested)."""
+        ts = np.clip(np.asarray(ts, dtype=float), 0.0, self._length)
+        ks = np.clip(
+            np.searchsorted(self._seg_s0, ts, side="right") - 1,
+            0,
+            len(self._tables) - 1,
+        )
+        out = np.empty((ts.size, 2), dtype=float)
+        tol = _INVERT_REL_TOL * max(self._length, 1e-300)
+        for k in np.unique(ks):
+            mask = ks == k
+            u_breaks, s_cum = self._tables[k]
+            u = invert_cumulative_many(
+                u_breaks,
+                s_cum,
+                ts[mask] - self._seg_s0[k],
+                _speed_fn(self._coeffs[k]),
+                tol=tol,
+            )
+            out[mask] = _poly_eval_many(self._coeffs[k], u)
+        return out
 
     def derivative_at(self, t: float) -> tuple[float, float]:
         """Unit tangent (the polynomial velocity, normalized)."""
@@ -390,6 +417,13 @@ def _poly_eval(c: np.ndarray, u: float) -> tuple[float, float]:
     x = c[0][0] + u * (c[0][1] + u * (c[0][2] + u * c[0][3]))
     y = c[1][0] + u * (c[1][1] + u * (c[1][2] + u * c[1][3]))
     return (x, y)
+
+
+def _poly_eval_many(c: np.ndarray, u: np.ndarray) -> np.ndarray:
+    """Vectorized ``_poly_eval``: (n,) parameters -> (n, 2) points."""
+    x = c[0][0] + u * (c[0][1] + u * (c[0][2] + u * c[0][3]))
+    y = c[1][0] + u * (c[1][1] + u * (c[1][2] + u * c[1][3]))
+    return np.column_stack([x, y])
 
 
 def _poly_eval_derivative(c: np.ndarray, u: float) -> tuple[float, float]:

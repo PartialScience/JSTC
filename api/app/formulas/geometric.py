@@ -77,8 +77,11 @@ def helical_wire_length_between(
     total_turns = float(turn_fxn(t2)) - float(turn_fxn(t1))
     n_samples = max(min_samples, int(20 * abs(total_turns)))
     ts = np.linspace(t1, t2, n_samples)
-    points = np.array([curve.point_at(t) for t in ts])
-    turns = np.array([turn_fxn(t) for t in ts])
+    # points_at is the batched point_at (identical values, contract-tested):
+    # one vectorized arc-length inversion instead of n_samples scalar solves,
+    # which is what keeps dense sampling of spline windings fast.
+    points = np.asarray(curve.points_at(ts), dtype=float)
+    turns = np.array([float(turn_fxn(t)) for t in ts])
     dr_dz = np.diff(points, axis=0)
     planar_sq = np.sum(dr_dz ** 2, axis=1)
     mean_r = 0.5 * (points[:-1, 0] + points[1:, 0])
