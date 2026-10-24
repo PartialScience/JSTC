@@ -15,6 +15,7 @@ nearest-turn rounding.
 """
 from __future__ import annotations
 
+import warnings
 from typing import Tuple
 
 import numpy as np
@@ -28,6 +29,12 @@ def secondary_turn_points(secondary: SecondaryConductorSpec) -> np.ndarray:
     Returns an (M+1) x 2 array, M = total_turns: the fencepost positions
     of every integer turn boundary along the winding, located by the turn
     profile's exact inverse.
+
+    Adjacent rings closer than the wire diameter mean physically
+    overlapping turns. The ring solvers stay finite in that regime (the
+    ring mutual is regularized at the wire radius) but the turn-per-ring
+    model no longer represents the real winding, so this warns rather
+    than silently returning degraded physics.
     """
     curve = secondary.curve
     turn_fxn = secondary.turn_fxn
@@ -36,7 +43,22 @@ def secondary_turn_points(secondary: SecondaryConductorSpec) -> np.ndarray:
     t_values = [curve.t_min]
     t_values += [turn_fxn.inverse(float(k)) for k in range(1, num_turns)]
     t_values.append(curve.t_max)
-    return np.array([curve.point_at(t) for t in t_values])
+    points = np.array([curve.point_at(t) for t in t_values])
+
+    gaps = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    worst = int(np.argmin(gaps))
+    if gaps[worst] < secondary.wire_dia:
+        n_overlapping = int(np.count_nonzero(gaps < secondary.wire_dia))
+        warnings.warn(
+            f"Secondary turns overlap: {n_overlapping} adjacent turn pair(s) "
+            f"are closer than the wire diameter ({secondary.wire_dia:.6g}); "
+            f"tightest is turns {worst}-{worst + 1} at spacing "
+            f"{gaps[worst]:.6g} near (r, z) = ({points[worst][0]:.6g}, "
+            f"{points[worst][1]:.6g}). Inductance and coupling results "
+            "will not represent the physical winding.",
+            stacklevel=2,
+        )
+    return points
 
 
 def segment_start_indices(

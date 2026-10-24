@@ -16,6 +16,25 @@ from abc import abstractmethod
 from math import ceil
 
 
+def _turn_count_ceil(total: float, rel_tol: float = 1e-9) -> int:
+    """Ceiling of a turn count that is immune to float rounding noise.
+
+    Turn totals are evaluated as ``turn_fxn(curve.t_max)``, where the
+    profile's own t_max and the curve's t_max are the same quantity
+    computed through different float expressions. Non-associative
+    rounding can leave the result a few ulp above the exact integer
+    (e.g. 1400 * 0.37 / 0.37 == 1400.0000000000002), and a bare ceil
+    then invents a whole phantom turn - which downstream becomes a
+    duplicate sampling ring coincident with the winding end and a
+    divergent ring mutual inductance. A value within rel_tol of an
+    integer IS that integer; only genuine fractional turns round up.
+    """
+    nearest = round(total)
+    if abs(total - nearest) <= rel_tol * max(1.0, abs(total)):
+        return int(nearest)
+    return int(ceil(total))
+
+
 @dataclass(frozen=True)
 class CoilComponent(GeometricRegion):
     """Base class for coil components with geometric and physical properties."""
@@ -147,7 +166,7 @@ class SecondaryConductorSpec(CoilComponent):
         a few extra turns is likely to be negligible. So the height is
         a more important consideration.
         """
-        return int(ceil(self.turn_fxn(self.curve.t_max)))
+        return _turn_count_ceil(self.turn_fxn(self.curve.t_max))
 
 @dataclass(frozen=True)
 class LinearSecondaryConductorSpec(SecondaryConductorSpec):
@@ -299,7 +318,7 @@ class PrimarySpec:
         if total <= 0:
             raise ValueError(f"Primary must have positive turns, got {total}")
 
-        n_rings = int(ceil(total))
+        n_rings = _turn_count_ceil(total)
         mid_turns = [
             (k + min(k + 1.0, total)) / 2.0 for k in range(n_rings)
         ]
@@ -320,7 +339,7 @@ class PrimarySpec:
         cannot be represented axisymmetrically, and the capacitance
         effect of the difference is negligible.)"""
         total = self.total_turns
-        n_rings = int(ceil(total))
+        n_rings = _turn_count_ceil(total)
         return tuple(min(k + 1.0, total) - k for k in range(n_rings))
 
 

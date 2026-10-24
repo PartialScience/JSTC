@@ -72,6 +72,45 @@ class TestCoaxialCircleGeometricMutualInductance:
         assert_allclose(result_scaled, alpha * result_original, rtol=1e-10)
 
 
+class TestNearCoincidentRegularization:
+    """Rings whose centers are within one wire radius use the finite
+    Kirchhoff loop value instead of the diverging Maxwell filament mutual.
+
+    Regression: a duplicate sampling ring at 1e-16 axial separation used
+    to send one inductance-matrix entry to ~1e8 (geometric), collapsing
+    the fundamental eigenfrequency of an otherwise-healthy coil.
+    """
+
+    R, DIA = 0.065, 0.000212  # the bug-report coil's secondary ring
+
+    def test_epsilon_separation_equals_self_inductance(self):
+        self_val = coaxial_circle_geometric_mutual_inductance(self.R, self.R, 0.0, self.DIA)
+        near = coaxial_circle_geometric_mutual_inductance(self.R, self.R, 1e-16, self.DIA)
+        assert near == pytest.approx(self_val, rel=1e-12)
+        # Sanity: nowhere near the divergent filament value (~1e8).
+        assert near < 1.0
+
+    def test_radial_offset_also_guarded(self):
+        wire_radius = self.DIA / 2.0
+        guarded = coaxial_circle_geometric_mutual_inductance(
+            self.R, self.R + 0.5 * wire_radius, 0.0, self.DIA
+        )
+        self_val = coaxial_circle_geometric_mutual_inductance(self.R, self.R, 0.0, self.DIA)
+        assert guarded == pytest.approx(self_val, rel=1e-2)
+
+    def test_continuous_across_the_switch(self):
+        """Kirchhoff equals the Maxwell mutual at one wire-radius
+        separation, so the branch switch must not jump."""
+        wire_radius = self.DIA / 2.0
+        inside = coaxial_circle_geometric_mutual_inductance(
+            self.R, self.R, wire_radius * (1 - 1e-9), self.DIA
+        )
+        outside = coaxial_circle_geometric_mutual_inductance(
+            self.R, self.R, wire_radius * (1 + 1e-9), self.DIA
+        )
+        assert inside == pytest.approx(outside, rel=1e-4)
+
+
 class TestRingSelfInductance:
     """coaxial_ring_self_geometric_inductance."""
 
