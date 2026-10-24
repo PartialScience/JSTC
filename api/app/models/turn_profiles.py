@@ -164,7 +164,9 @@ class UniformTurnProfile(TurnProfile):
             raise ValueError(f"t_max must be positive, got {self.t_max}")
 
     def __call__(self, t: float) -> float:
-        return self.total_turns * t / self.t_max
+        # Grouped so t == t_max gives exactly total_turns: (N * t) / t_max
+        # can land a few ulp above N, and turn counting ceils this value.
+        return self.total_turns * (t / self.t_max)
 
     def inverse(self, n: float) -> float:
         return self.t_max * n / self.total_turns

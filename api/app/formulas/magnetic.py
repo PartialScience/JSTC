@@ -10,10 +10,13 @@ def coaxial_circle_geometric_mutual_inductance(
     """Calculate the mutual, geometric inductance between two coaxial 
     circular conductors using the Maxwell Formula for coaxial inductance.
     
-    When d=0 and r1=r2 (self-inductance of a single ring), the mutual
-    formula diverges. In this case, the Kirchhoff formula for the self-
-    inductance of a circular loop of finite wire cross-section is used
-    instead.
+    The filament (Maxwell) mutual diverges as the rings approach each
+    other, and is unphysical once their centers are inside the wire
+    cross-section. Whenever the center-to-center distance is at most the
+    wire RADIUS - which includes the d=0, r1=r2 self-inductance case -
+    the Kirchhoff formula for a circular loop of finite wire cross-section
+    is used instead. The switch is continuous: the Kirchhoff value equals
+    the Maxwell mutual evaluated at a separation of one wire radius.
     
     Compiled with numba.njit — callable from other @numba.njit functions
     and from regular Python code (accepts scalars only).
@@ -37,9 +40,10 @@ def coaxial_circle_geometric_mutual_inductance(
     
     Link: https://nvlpubs.nist.gov/nistpubs/bulletin/08/nbsbulletinv8n1p1_A2b.pdf
     """
-    if d == 0.0 and r1 == r2:
-        wire_radius = wire_diameter / 2.0
-        return r1 * (math.log(8.0 * r1 / wire_radius) - 2.0)
+    wire_radius = wire_diameter / 2.0
+    if (r2 - r1) ** 2 + d ** 2 <= wire_radius * wire_radius:
+        r_eff = 0.5 * (r1 + r2)
+        return r_eff * (math.log(8.0 * r_eff / wire_radius) - 2.0)
 
     k_sq = 4.0 * r1 * r2 / ((r1 + r2) ** 2 + d ** 2)
     k = math.sqrt(k_sq)
